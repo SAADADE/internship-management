@@ -1,0 +1,492 @@
+# Internship Report Generator API
+
+A **Django REST Framework** API that transforms raw intern notes into a
+polished, academically-toned **end-of-internship report** in `.docx` format,
+powered by **Groq LLMs** (Llama 3.3 70B by default).
+
+---
+
+## Architecture
+
+```
+Client
+  │
+  ▼  POST /api/generate-report/
+┌──────────────────────────┐
+│   Django REST API        │  ← validates input, extracts text
+│   (report_generator/)    │
+└──────────┬───────────────┘
+           │
+           ▼
+┌──────────────────────────┐
+│   llm_service.py         │  ← sends structured prompt to Groq
+│   (Groq API)             │     returns JSON report structure
+└──────────┬───────────────┘
+           │
+           ▼
+┌──────────────────────────┐
+│   docx_builder.py        │  ← renders cover page, TOC, chapters,
+│   (python-docx)          │     references → .docx bytes
+└──────────────────────────┘
+           │
+           ▼
+  Binary .docx download
+```
+
+---
+
+## Project Structure
+
+```
+internship_report_api/
+├── config/
+│   ├── settings.py          # Django settings (reads .env)
+│   ├── urls.py              # Root URL conf
+│   └── wsgi.py
+├── report_generator/
+│   ├── serializers.py       # Input validation
+│   ├── views.py             # API endpoint logic
+│   ├── llm_service.py       # Groq integration & prompt engineering
+│   ├── docx_builder.py      # Word document construction
+│   ├── file_extractor.py    # .txt / .docx text extraction
+│   └── urls.py              # App URL routing
+├── .env.example             # Environment variable template
+├── requirements.txt
+└── manage.py
+```
+
+---
+
+## Quick Start
+
+### 1. Clone and install
+
+```bash
+git clone <your-repo>
+cd internship_report_api
+
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+# Edit .env and add your GROQ_API_KEY
+```
+
+Get a free API key at **https://console.groq.com/**
+
+### 3. Run the server
+
+```bash
+python manage.py runserver
+```
+
+The API will be available at `http://localhost:8000/`.
+
+---
+
+## API Reference
+
+The application now supports two main flows:
+
+1. A public report generation flow for generating a `.docx` internship report from notes.
+2. An authenticated student/supervisor workflow for creating student profiles, submitting logs, reviewing logs, and generating reports from approved review data.
+
+Base URL for local development:
+
+```text
+http://localhost:8000
+```
+
+> Most student and supervisor endpoints require authentication. For quick manual testing in Postman, use Basic Auth with a real Django user account.
+
+### `GET /api/health/`
+
+Health check.
+
+**Response 200**
+```json
+{
+  "status": "ok",
+  "service": "Internship Report Generator",
+  "version": "1.0.0"
+}
+```
+
+---
+
+### `POST /api/generate-report/`
+
+Generate a `.docx` end-of-internship report from raw notes.
+
+**Content-Type:** `multipart/form-data` (recommended) **or** `application/json`
+
+#### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | ✱ one of | Raw intern notes as plain text |
+| `file` | file | ✱ one of | `.txt` or `.docx` file with notes |
+| `intern_name` | string | optional | Full name of the intern |
+| `company_name` | string | optional | Host organisation name |
+| `internship_duration` | string | optional | e.g. `"June – August 2025 (12 weeks)"` |
+| `department` | string | optional | Team or department |
+| `supervisor_name` | string | optional | Supervisor's name |
+| `institution_name` | string | optional | University / polytechnic |
+| `programme` | string | optional | e.g. `"BSc Computer Science"` |
+| `additional_instructions` | string | optional | Extra LLM instructions |
+
+✱ At least one of `text` or `file` must be provided.
+
+**Success Response: 200 OK**
+- Content-Type: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- Body: binary `.docx` file
+
+**Error Responses**
+
+| Code | Meaning |
+|------|---------|
+| 400 | Invalid / missing input |
+| 503 | Groq API key not configured |
+| 502 | LLM returned unparseable response |
+| 500 | Internal server / document build error |
+
+#### Example JSON request
+
+```json
+{
+  "text": "During my internship at Acme Corp I worked on backend APIs using Django. I learned REST principles, database optimisation, and team communication. My supervisor was Dr. Jane Smith.",
+  "intern_name": "Kwame Asante",
+  "company_name": "Acme Corp",
+  "institution_name": "KNUST",
+  "programme": "BSc Computer Science",
+  "internship_duration": "June – August 2025"
+}
+```
+
+#### Example cURL request
+
+```bash
+curl -X POST http://localhost:8000/api/generate-report/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "During my internship at Acme Corp I worked on backend APIs using Django. I learned REST principles, database optimisation, and team communication. My supervisor was Dr. Jane Smith.",
+    "intern_name": "Kwame Asante",
+    "company_name": "Acme Corp",
+    "institution_name": "KNUST",
+    "programme": "BSc Computer Science",
+    "internship_duration": "June – August 2025"
+  }' \
+  --output report.docx
+```
+
+---
+
+### Student workflow endpoints
+
+These endpoints use the new internship schema with `Student`, `Supervisor`, `Internship`, `Log`, `Report`, and `Review` models.
+
+#### `GET /api/student/profile/`
+
+Fetch the authenticated student's profile.
+
+**Example request**
+```http
+GET http://localhost:8000/api/student/profile/
+```
+
+#### `POST /api/student/profile/`
+
+Create or update a student profile.
+
+**Body**
+```json
+{
+  "teams_id": "TEAM-001",
+  "sch_email": "student1@example.com",
+  "index_number": "IDX-001",
+  "first_name": "Ada",
+  "last_name": "Lovelace"
+}
+```
+
+#### `PATCH /api/student/profile/`
+
+Update profile fields.
+
+**Body**
+```json
+{
+  "teams_id": "TEAM-002"
+}
+```
+
+#### `GET /api/student/logs/`
+
+List the authenticated student's logs.
+
+**Example request**
+```http
+GET http://localhost:8000/api/student/logs/
+```
+
+#### `POST /api/student/logs/`
+
+Create a new student log.
+
+**Body**
+```json
+{
+  "date": "2026-06-20",
+  "content": "Implemented a new API endpoint and tested it locally."
+}
+```
+
+#### `PATCH /api/student/logs/{log_id}/`
+
+Update an existing student log. Replace `{log_id}` with the UUID returned when the log was created.
+
+**Body**
+```json
+{
+  "date": "2026-06-21",
+  "content": "Updated the implementation and documented the test results."
+}
+```
+
+#### `POST /api/student/report-draft/`
+
+Create or update the student's report draft.
+
+**Body**
+```json
+{
+  "introduction": "This report describes my internship experience at Acme Corp and the skills I developed during the placement.",
+  "abstract": "The internship focused on backend development, testing, and teamwork.",
+  "conclusion": "The placement was valuable and helped me improve both technical and professional skills.",
+  "department": "Engineering",
+  "company_name": "Acme Corp",
+  "supervisor_name": "Dr. Adams",
+  "additional_notes": "Please include weekly reflections and project outcomes."
+}
+```
+
+#### `POST /api/student/generate-report/`
+
+Generate a report from the student's draft and reviewed logs.
+
+**Body**
+```json
+{}
+```
+
+> This endpoint requires:
+> - a report draft with introduction, abstract, and conclusion
+> - at least one reviewed log
+
+---
+
+### Supervisor workflow endpoints
+
+#### `GET /api/supervisor/students/`
+
+Retrieve students assigned to the authenticated supervisor.
+
+**Example request**
+```http
+GET http://localhost:8000/api/supervisor/students/
+```
+
+#### `GET /api/supervisor/logs/`
+
+List logs belonging to the supervisor's assigned students.
+
+**Example request**
+```http
+GET http://localhost:8000/api/supervisor/logs/
+```
+
+#### `PATCH /api/supervisor/logs/{log_id}/`
+
+Review a specific log.
+
+**Body**
+```json
+{
+  "decision": "approved",
+  "comment": "Good work. The implementation is solid."
+}
+```
+
+#### `POST /api/supervisor/logs/bulk-status/`
+
+Review all logs for the supervisor's assigned students.
+
+**Body**
+```json
+{
+  "decision": "approved",
+  "comment": "All reviewed logs are accepted."
+}
+```
+
+---
+
+## Example Requests (Postman-ready)
+
+### 1. Health check
+
+```http
+GET http://localhost:8000/api/health/
+```
+
+### 2. Generate report from text
+
+```http
+POST http://localhost:8000/api/generate-report/
+Content-Type: application/json
+
+{
+  "text": "During my internship I worked on backend APIs, tested them, and documented the workflow. I improved system reliability and collaborated with the team.",
+  "intern_name": "Ada Lovelace",
+  "company_name": "Acme Corp",
+  "internship_duration": "June 2026 - August 2026",
+  "department": "Engineering",
+  "supervisor_name": "Dr. Adams",
+  "institution_name": "Test University",
+  "programme": "Computer Science",
+  "additional_instructions": "Write a formal internship report with clear sections."
+}
+```
+
+### 3. Create student profile
+
+```http
+POST http://localhost:8000/api/student/profile/
+Content-Type: application/json
+
+{
+  "teams_id": "TEAM-001",
+  "sch_email": "student1@example.com",
+  "index_number": "IDX-001",
+  "first_name": "Ada",
+  "last_name": "Lovelace"
+}
+```
+
+### 4. Create student log
+
+```http
+POST http://localhost:8000/api/student/logs/
+Content-Type: application/json
+
+{
+  "date": "2026-06-20",
+  "content": "Implemented a new API endpoint and tested it locally."
+}
+```
+
+### 5. Create report draft
+
+```http
+POST http://localhost:8000/api/student/report-draft/
+Content-Type: application/json
+
+{
+  "introduction": "This report describes my internship experience at Acme Corp and the skills I developed during the placement.",
+  "abstract": "The internship focused on backend development, testing, and teamwork.",
+  "conclusion": "The placement was valuable and helped me improve both technical and professional skills.",
+  "department": "Engineering",
+  "company_name": "Acme Corp",
+  "supervisor_name": "Dr. Adams",
+  "additional_notes": "Please include weekly reflections and project outcomes."
+}
+```
+
+### 6. Review a supervisor-assigned log
+
+```http
+PATCH http://localhost:8000/api/supervisor/logs/123e4567-e89b-12d3-a456-426614174000/
+Content-Type: application/json
+
+{
+  "decision": "approved",
+  "comment": "Good work. The implementation is solid."
+}
+```
+
+### 7. Bulk review logs
+
+```http
+POST http://localhost:8000/api/supervisor/logs/bulk-status/
+Content-Type: application/json
+
+{
+  "decision": "approved",
+  "comment": "All reviewed logs are accepted."
+}
+```
+
+### 8. Generate a student report
+
+```http
+POST http://localhost:8000/api/student/generate-report/
+Content-Type: application/json
+
+{}
+```
+
+---
+
+## Generated Report Structure
+
+The output document includes:
+
+1. **Cover Page** — title, intern metadata, institution branding
+2. **Table of Contents** — auto-generated (refresh in Word with F9)
+3. **Abstract** — 150–200 word executive summary
+4. **Acknowledgements**
+5. **Introduction**
+6. **Overview of the Host Organisation**
+7. **Objectives of the Internship**
+8. **Activities Undertaken**
+9. **Skills Acquired and Competencies Developed**
+10. **Challenges Encountered and Mitigation Strategies**
+11. **Conclusion**
+12. **Recommendations**
+13. **References** (APA format)
+
+---
+
+## Supported Groq Models
+
+Set `GROQ_MODEL` in `.env`:
+
+| Model | Notes |
+|-------|-------|
+| `llama-3.3-70b-versatile` | **Default** — best quality |
+| `llama-3.1-8b-instant` | Fastest, lower cost |
+| `mixtral-8x7b-32768` | Long context support |
+| `gemma2-9b-it` | Lightweight alternative |
+
+---
+
+## Production Deployment
+
+```bash
+# Use gunicorn instead of manage.py runserver
+pip install gunicorn
+gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+
+# Set secure env vars
+DJANGO_SECRET_KEY=<long-random-string>
+DEBUG=False
+ALLOWED_HOSTS=yourdomain.com
+```
+
+> **Note:** For high traffic, consider adding a task queue (Celery + Redis)
+> since LLM calls can take 10–30 seconds.
