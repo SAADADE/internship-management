@@ -10,6 +10,7 @@ const studentNav = [
   { label: 'Internship', icon: Briefcase, to: '/internship/register' },
   { label: 'Weekly Logs', icon: FileText, to: '/reports' },
   { label: 'Upload Logs', icon: FileText, to: '/reports/upload' },
+  { label: 'Generate Report', icon: FileText, to: '/reports/generate' },
   { label: 'Feedback', icon: MessageSquare, to: '/feedback' },
 ]
 
@@ -22,7 +23,7 @@ const supervisorNav = [
 const adminNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
   { label: 'Students', icon: GraduationCap, to: '/admin/students' },
-  { label: 'Weekly Logs', icon: FileText, to: '/admin/reports' },
+  { label: 'Reports & Appraisals', icon: FileText, to: '/admin/reports' },
   { label: 'Settings', icon: Settings, to: '/admin/settings' },
 ]
 

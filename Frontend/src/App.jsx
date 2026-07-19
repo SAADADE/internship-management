@@ -14,6 +14,7 @@ import InternAppraisal from './pages/InternAppraisal'
 import AdminDashboard from './pages/AdminDashboard'
 import Profile from './pages/Profile'
 import Feedback from './pages/Feedback'
+import GenerateReport from './pages/GenerateReport'
 import AdminStudents from './pages/AdminStudents'
 import AdminReports from './pages/AdminReports'
 import Layout from './components/Layout'
@@ -71,6 +72,11 @@ export default function App() {
           <Route path="/reports" element={
             <ProtectedRoute roles={['student']}>
               <Layout><ViewReports /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/reports/generate" element={
+            <ProtectedRoute roles={['student']}>
+              <Layout><GenerateReport /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/feedback" element={

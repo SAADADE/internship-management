@@ -1,300 +1,284 @@
-import { useState } from 'react'
-import { FileText, Search, Filter, CheckCircle, Clock, AlertCircle, BarChart3 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { FileText, Search, ClipboardCheck, Eye, X } from 'lucide-react'
 
-const ADMIN_REPORTS_DATA = [
+const FINAL_REPORTS = [
   {
     id: 1,
-    title: 'Week 1 - Onboarding & Setup',
     studentName: 'Peter Mensah',
     studentId: 'CS/0420/20',
     department: 'Computer Science',
-    reportWeek: 'Week 1',
-    submissionDate: '2024-03-15',
-    dueDate: '2024-03-17',
-    status: 'reviewed',
-    rating: 5,
-    company: 'Tech Innovation Ltd',
-    supervisor: 'Dr. Theresa'
+    title: 'Final Internship Report',
+    submittedOn: '2024-03-15',
   },
   {
     id: 2,
-    title: 'Week 2 - Project Implementation',
-    studentName: 'Kwame Ofori',
-    studentId: 'CS/0421/20',
-    department: 'Computer Science',
-    reportWeek: 'Week 2',
-    submissionDate: '2024-03-10',
-    dueDate: '2024-03-17',
-    status: 'pending',
-    rating: 0,
-    company: 'Digital Solutions Inc',
-    supervisor: 'Dr. Ama Owusu'
-  },
-  {
-    id: 3,
-    title: 'Week 1 - Onboarding & Setup',
     studentName: 'Ama Johnson',
     studentId: 'ENG/0422/20',
     department: 'Engineering',
-    reportWeek: 'Week 1',
-    submissionDate: '2024-03-14',
-    dueDate: '2024-03-17',
-    status: 'reviewed',
-    rating: 4,
-    company: 'Cloud Services Ltd',
-    supervisor: 'Prof. John Asante'
+    title: 'Final Internship Report',
+    submittedOn: '2024-03-14',
   },
   {
-    id: 4,
-    title: 'Week 2 - Project Implementation',
+    id: 3,
     studentName: 'Yaa Asantewaa',
     studentId: 'BUS/0423/20',
     department: 'Business',
-    reportWeek: 'Week 2',
-    submissionDate: '2024-03-12',
-    dueDate: '2024-03-17',
-    status: 'pending',
-    rating: 0,
-    company: 'Enterprise Solutions',
-    supervisor: 'Dr. Grace Mensah'
+    title: 'Final Internship Report',
+    submittedOn: '2024-03-12',
+  },
+]
+
+const APPRAISAL_FORMS = [
+  {
+    id: 1,
+    studentName: 'Kwame Ofori',
+    studentId: 'CS/0421/20',
+    supervisorName: 'Dr. Ama Owusu',
+    submittedOn: '2024-03-10',
   },
   {
-    id: 5,
-    title: 'Week 3 - System Testing',
-    studentName: 'Nana Ama Osei',
-    studentId: 'CS/0424/20',
-    department: 'Computer Science',
-    reportWeek: 'Week 3',
-    submissionDate: '2024-03-08',
-    dueDate: '2024-03-17',
-    status: 'late',
-    rating: 3,
-    company: 'Tech Innovations',
-    supervisor: 'Dr. Ama Owusu'
-  },
-  {
-    id: 6,
-    title: 'Week 1 - Onboarding & Setup',
+    id: 2,
     studentName: 'Efua Mensah',
     studentId: 'ENG/0425/20',
-    department: 'Engineering',
-    reportWeek: 'Week 1',
-    submissionDate: '2024-03-13',
-    dueDate: '2024-03-17',
-    status: 'reviewed',
-    rating: 5,
-    company: 'Tullow Oil Ghana',
-    supervisor: 'Prof. John Asante'
-  }
+    supervisorName: 'Prof. John Asante',
+    submittedOn: '2024-03-13',
+  },
+  {
+    id: 3,
+    studentName: 'Nana Ama Osei',
+    studentId: 'CS/0424/20',
+    supervisorName: 'Dr. Grace Mensah',
+    submittedOn: '2024-03-08',
+  },
 ]
+
+const FINAL_REPORT_DETAILS = {
+  1: {
+    title: 'Final Internship Report',
+    summary: 'The student completed a full internship cycle with strong technical delivery and clear reflection on workplace learning.',
+    sections: [
+      'Abstract: This report documents the student’s contribution to software testing and support during the internship placement.',
+      'Introduction: The internship was undertaken at Tech Innovation Ltd, where the student worked with the operations and IT support teams.',
+      'Conclusion: The student demonstrated professionalism, adaptability, and a strengthened understanding of real-world workplace systems.'
+    ]
+  },
+  2: {
+    title: 'Final Internship Report',
+    summary: 'The student worked on process improvement initiatives and presented a strong understanding of engineering practices.',
+    sections: [
+      'Abstract: The report reflects the student’s involvement in a structural engineering support project during the internship.',
+      'Introduction: The placement at Cloud Services Ltd provided practical exposure to engineering documentation and operations.',
+      'Conclusion: The internship helped the student connect academic learning with professional engineering expectations.'
+    ]
+  },
+  3: {
+    title: 'Final Internship Report',
+    summary: 'The student contributed to business process documentation and gained useful exposure to stakeholder communication.',
+    sections: [
+      'Abstract: This report highlights the student’s work in a business operations setting and their role in supporting internal reporting.',
+      'Introduction: The internship at Enterprise Solutions introduced the student to business analysis and project coordination.',
+      'Conclusion: The experience built confidence in communication, planning, and professional teamwork.'
+    ]
+  },
+}
+
+const APPRAISAL_DETAILS = {
+  1: {
+    title: 'Supervisor Appraisal Form',
+    rating: '4.5/5',
+    strengths: ['Excellent communication', 'Reliable on deadlines', 'Adapted quickly to the team environment'],
+    comments: 'The student showed maturity, initiative, and a strong attitude towards learning. They were dependable and contributed positively to team activities.'
+  },
+  2: {
+    title: 'Supervisor Appraisal Form',
+    rating: '4.0/5',
+    strengths: ['Good technical understanding', 'Willing to ask questions', 'Professional conduct'],
+    comments: 'The student was eager to learn and made steady progress throughout the placement. Their work quality improved significantly over time.'
+  },
+  3: {
+    title: 'Supervisor Appraisal Form',
+    rating: '4.2/5',
+    strengths: ['Strong teamwork', 'Organized and punctual', 'Showed ownership of tasks'],
+    comments: 'The student handled responsibility well and demonstrated a positive professional attitude during the internship period.'
+  },
+}
 
 export default function AdminReports() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterDept, setFilterDept] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [selectedAppraisal, setSelectedAppraisal] = useState(null)
 
-  const departments = ['all', ...new Set(ADMIN_REPORTS_DATA.map(r => r.department))]
+  const filteredFinalReports = useMemo(() => {
+    const query = searchTerm.toLowerCase()
+    return FINAL_REPORTS.filter((report) =>
+      report.studentName.toLowerCase().includes(query) ||
+      report.studentId.toLowerCase().includes(query) ||
+      report.department.toLowerCase().includes(query)
+    )
+  }, [searchTerm])
 
-  const filteredReports = ADMIN_REPORTS_DATA.filter(report => {
-    const matchesSearch =
-      report.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.title.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesDept = filterDept === 'all' || report.department === filterDept
-    const matchesStatus = filterStatus === 'all' || report.status === filterStatus
-
-    return matchesSearch && matchesDept && matchesStatus
-  })
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'reviewed':
-        return <span className="badge-success">Reviewed</span>
-      case 'pending':
-        return <span className="badge-warning">Pending</span>
-      case 'late':
-        return <span className="badge-error">Late</span>
-      default:
-        return null
-    }
-  }
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'reviewed':
-        return <CheckCircle size={16} className="text-emerald-600" />
-      case 'pending':
-        return <Clock size={16} className="text-amber-600" />
-      case 'late':
-        return <AlertCircle size={16} className="text-red-600" />
-      default:
-        return null
-    }
-  }
-
-  const reviewedCount = ADMIN_REPORTS_DATA.filter(r => r.status === 'reviewed').length
-  const pendingCount = ADMIN_REPORTS_DATA.filter(r => r.status === 'pending').length
-  const lateCount = ADMIN_REPORTS_DATA.filter(r => r.status === 'late').length
-  const avgRating = (ADMIN_REPORTS_DATA.reduce((sum, r) => sum + r.rating, 0) / reviewedCount).toFixed(1)
+  const filteredAppraisals = useMemo(() => {
+    const query = searchTerm.toLowerCase()
+    return APPRAISAL_FORMS.filter((form) =>
+      form.studentName.toLowerCase().includes(query) ||
+      form.studentId.toLowerCase().includes(query) ||
+      form.supervisorName.toLowerCase().includes(query)
+    )
+  }, [searchTerm])
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 font-heading">All Reports</h1>
-          <p className="text-gray-500 mt-1">Monitor all student internship reports across departments</p>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold text-gray-900 font-heading">Student Final Reports & Appraisals</h1>
+        <p className="text-gray-500">Review submitted final reports from students and appraisal forms from supervisors.</p>
+      </div>
+
+      <div className="card p-4">
+        <div className="flex-1 relative">
+          <Search size={18} className="absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by student name, ID, department, or supervisor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="form-input pl-10"
+          />
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="card p-4">
-          <p className="text-gray-600 text-sm font-medium">Total Reports</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{ADMIN_REPORTS_DATA.length}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-gray-600 text-sm font-medium">Reviewed</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-2">{reviewedCount}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-gray-600 text-sm font-medium">Pending</p>
-          <p className="text-2xl font-bold text-amber-600 mt-2">{pendingCount}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-gray-600 text-sm font-medium">Late</p>
-          <p className="text-2xl font-bold text-red-600 mt-2">{lateCount}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-gray-600 text-sm font-medium">Avg Rating</p>
-          <p className="text-2xl font-bold text-yellow-600 mt-2">{avgRating}⭐</p>
-        </div>
-      </div>
-
-      {/* Search & Filter Bar */}
-      <div className="card p-4 space-y-4">
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-3 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by student name, ID, or report title..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field pl-10"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 flex-wrap items-center">
-          <span className="text-sm font-medium text-gray-700">Filter:</span>
-
-          <div className="flex gap-2 flex-wrap">
-            {departments.map(dept => (
-              <button
-                key={dept}
-                onClick={() => setFilterDept(dept)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  filterDept === dept
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {dept === 'all' ? 'All Depts' : dept}
-              </button>
-            ))}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="card overflow-hidden">
+          <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <FileText size={16} className="text-primary-600" />
+              <h2 className="section-title">Student Final Reports</h2>
+            </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap ml-auto">
-            {['all', 'reviewed', 'pending', 'late'].map(status => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  filterStatus === status
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status === 'all' ? 'All Status' : status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Reports Table */}
-      <div className="card overflow-hidden">
-        {filteredReports.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText size={40} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500 font-medium">No reports found</p>
-            <p className="text-sm text-gray-400">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50/70 border-b border-gray-200">
-              <tr>
-                <th className="table-header text-left">Student</th>
-                <th className="table-header text-left">Department</th>
-                <th className="table-header text-left">Report</th>
-                <th className="table-header text-left">Week</th>
-                <th className="table-header text-center">Submitted</th>
-                <th className="table-header text-center">Status</th>
-                <th className="table-header text-center">Rating</th>
-                <th className="table-header text-center">Supervisor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredReports.map((report, idx) => (
-                <tr key={report.id} className={`hover:bg-gray-50 transition-colors ${idx % 2 ? 'bg-gray-50/30' : ''}`}>
-                  <td className="table-cell">
+          {filteredFinalReports.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">No final reports found.</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredFinalReports.map((report) => (
+                <div key={report.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-gray-900">{report.studentName}</p>
+                      <p className="font-semibold text-gray-900">{report.studentName}</p>
                       <p className="text-xs text-gray-500 font-mono">{report.studentId}</p>
+                      <p className="mt-2 text-sm text-gray-600">{report.title}</p>
+                      <p className="text-xs text-gray-400">Department: {report.department}</p>
                     </div>
-                  </td>
-                  <td className="table-cell">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                      {report.department}
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <p className="text-sm text-gray-900">{report.title}</p>
-                  </td>
-                  <td className="table-cell">
-                    <span className="text-sm font-medium text-gray-700">{report.reportWeek}</span>
-                  </td>
-                  <td className="table-cell text-center">
-                    <p className="text-xs text-gray-500">
-                      {new Date(report.submissionDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}
-                    </p>
-                  </td>
-                  <td className="table-cell text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      {getStatusIcon(report.status)}
-                      {getStatusBadge(report.status)}
-                    </div>
-                  </td>
-                  <td className="table-cell text-center">
-                    {report.status === 'pending' ? (
-                      <span className="text-xs text-gray-400">—</span>
-                    ) : (
-                      <div className="flex justify-center">
-                        <span className="text-yellow-500 font-semibold">{report.rating}⭐</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="table-cell text-center">
-                    <p className="text-sm text-gray-700">{report.supervisor}</p>
-                  </td>
-                </tr>
+                    <span className="badge-success">Submitted</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-400">Submitted on {new Date(report.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    <button type="button" onClick={() => setSelectedReport(report)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
+                      <Eye size={14} /> View report
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
+            </div>
+          )}
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck size={16} className="text-primary-600" />
+              <h2 className="section-title">Supervisor Appraisal Forms</h2>
+            </div>
+          </div>
+
+          {filteredAppraisals.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">No appraisal forms found.</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredAppraisals.map((form) => (
+                <div key={form.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{form.studentName}</p>
+                      <p className="text-xs text-gray-500 font-mono">{form.studentId}</p>
+                      <p className="mt-2 text-sm text-gray-600">Supervisor: {form.supervisorName}</p>
+                    </div>
+                    <span className="badge-info">Received</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-400">Submitted on {new Date(form.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    <button type="button" onClick={() => setSelectedAppraisal(form)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
+                      <Eye size={14} /> View form
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {(selectedReport || selectedAppraisal) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedReport ? FINAL_REPORT_DETAILS[selectedReport.id]?.title : APPRAISAL_DETAILS[selectedAppraisal.id]?.title}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedReport
+                    ? `${selectedReport.studentName} • ${selectedReport.studentId}`
+                    : `${selectedAppraisal.studentName} • ${selectedAppraisal.studentId}`}
+                </p>
+              </div>
+              <button type="button" onClick={() => { setSelectedReport(null); setSelectedAppraisal(null) }} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                <X size={18} />
+              </button>
+            </div>
+
+            {selectedReport && (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Summary</p>
+                  <p className="mt-2 text-sm text-gray-600">{FINAL_REPORT_DETAILS[selectedReport.id]?.summary}</p>
+                </div>
+                <div className="space-y-3">
+                  {FINAL_REPORT_DETAILS[selectedReport.id]?.sections.map((section, index) => (
+                    <div key={index} className="rounded-2xl border border-gray-200 p-4">
+                      <p className="text-sm text-gray-700">{section}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedAppraisal && (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Supervisor</p>
+                  <p className="mt-1 text-sm text-gray-600">{selectedAppraisal.supervisorName}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Rating</p>
+                  <p className="mt-2 text-sm text-gray-600">{APPRAISAL_DETAILS[selectedAppraisal.id]?.rating}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Strengths</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600">
+                    {APPRAISAL_DETAILS[selectedAppraisal.id]?.strengths.map((strength) => (
+                      <li key={strength}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Comments</p>
+                  <p className="mt-2 text-sm text-gray-600">{APPRAISAL_DETAILS[selectedAppraisal.id]?.comments}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

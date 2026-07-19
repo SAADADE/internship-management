@@ -18,7 +18,7 @@ const ACTIVITY = [
 const QUICK_ACTIONS = [
   { icon: PlusCircle, label: 'Register Internship', sub: 'Submit your placement details', to: '/internship/register', color: 'bg-primary-700 hover:bg-primary-800 text-white' },
   { icon: Upload,     label: 'Upload Log Sheet',    sub: 'Attach your weekly logbook', to: '/reports/upload',       color: 'bg-sky-600 hover:bg-sky-700 text-white' },
-  { icon: FileText,   label: 'Generate Report',       sub: 'Please ensure you have uploaded all log sheets', to: '',  color: 'bg-amber-500 hover:bg-amber-600 text-white' },
+  { icon: FileText,   label: 'Generate Report',       sub: 'Please ensure you have uploaded all log sheets', to: '/reports/generate',  color: 'bg-amber-500 hover:bg-amber-600 text-white' },
 ]
 
 function getGreeting() {
