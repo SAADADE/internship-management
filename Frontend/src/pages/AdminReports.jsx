@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FileText, Search, ClipboardCheck, Eye, X } from 'lucide-react'
 
 const FINAL_REPORTS = [
@@ -104,6 +105,7 @@ const APPRAISAL_DETAILS = {
 }
 
 export default function AdminReports() {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
   const [selectedAppraisal, setSelectedAppraisal] = useState(null)
@@ -172,7 +174,7 @@ export default function AdminReports() {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <p className="text-xs text-gray-400">Submitted on {new Date(report.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                    <button type="button" onClick={() => setSelectedReport(report)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
+                    <button type="button" onClick={() => navigate(`/admin/reports/${report.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
                       <Eye size={14} /> View report
                     </button>
                   </div>
@@ -206,7 +208,7 @@ export default function AdminReports() {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <p className="text-xs text-gray-400">Submitted on {new Date(form.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                    <button type="button" onClick={() => setSelectedAppraisal(form)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
+                    <button type="button" onClick={() => navigate(`/admin/appraisals/${form.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
                       <Eye size={14} /> View form
                     </button>
                   </div>

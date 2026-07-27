@@ -187,7 +187,7 @@ export default function Profile() {
                   type="password"
                   value={passwordData.currentPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                  className="input-field"
+                  className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
 
@@ -197,7 +197,7 @@ export default function Profile() {
                   type="password"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                  className="input-field"
+                  className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
 
@@ -207,7 +207,7 @@ export default function Profile() {
                   type="password"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  className="input-field"
+                  className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
 

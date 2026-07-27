@@ -16,7 +16,10 @@ import Profile from './pages/Profile'
 import Feedback from './pages/Feedback'
 import GenerateReport from './pages/GenerateReport'
 import AdminStudents from './pages/AdminStudents'
+import AdminStudentView from './pages/AdminStudentView'
 import AdminReports from './pages/AdminReports'
+import AdminAppraisalView from './pages/AdminAppraisalView'
+import AdminReportView from './pages/AdminReportView'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ children, roles }) {
@@ -118,9 +121,24 @@ export default function App() {
               <Layout><AdminStudents /></Layout>
             </ProtectedRoute>
           } />
+          <Route path="/admin/students/:id" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminStudentView /></Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/admin/reports" element={
             <ProtectedRoute roles={['admin']}>
               <Layout><AdminReports /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/appraisals/:id" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminAppraisalView /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/reports/:id" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminReportView /></Layout>
             </ProtectedRoute>
           } />
 

@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts'
 import {
-  Users, FileText, Briefcase, TrendingUp,
+  Users, FileText, Briefcase,
   Activity, UserCheck, AlertCircle, Clock,
   RefreshCw, Download, Shield, CheckCircle
 } from 'lucide-react'
@@ -29,19 +29,19 @@ const STATUS_PIE = [
 ]
 
 const ACTIVITY_LOG = [
-  { icon: UserCheck, color: 'bg-primary-100 text-primary-700', action: 'New student registered', detail: 'Yaa Asantewaa — CS/0421/20', time: '5 min ago' },
-  { icon: FileText,  color: 'bg-sky-100 text-sky-700',         action: 'Report submitted',        detail: 'IT Training Report — Peter Mensah', time: '22 min ago' },
-  { icon: CheckCircle, color: 'bg-emerald-100 text-emerald-700', action: 'Report reviewed',       detail: 'Dr. Owusu reviewed Report #4 (Kwame Ofori)', time: '1 hr ago' },
-  { icon: AlertCircle, color: 'bg-amber-100 text-amber-700',   action: 'Deadline reminder sent',  detail: 'Report #5 deadline in 3 days — 24 students', time: '2 hrs ago' },
-  { icon: Shield,    color: 'bg-violet-100 text-violet-700',    action: 'Admin login',             detail: 'Admin User logged in from 196.x.x.x', time: '3 hrs ago' },
-  { icon: Briefcase, color: 'bg-rose-100 text-rose-700',        action: 'Internship approved',    detail: 'Efua Mensah — Tullow Oil Ghana', time: '4 hrs ago' },
+  { icon: UserCheck, color: 'bg-primary-100 text-primary-700', action: 'Student appraisal submitted', detail: 'Kwame Ofori — Supervisor appraisal received', time: '5 min ago' },
+  { icon: FileText, color: 'bg-sky-100 text-sky-700', action: 'Final report submitted', detail: 'Peter Mensah — Final internship report uploaded', time: '22 min ago' },
+  { icon: CheckCircle, color: 'bg-emerald-100 text-emerald-700', action: 'Supervisor submitted appraisal', detail: 'Dr. Ama Owusu completed evaluation for Yaa Asantewaa', time: '1 hr ago' },
+  { icon: Briefcase, color: 'bg-rose-100 text-rose-700', action: 'Internship registration received', detail: 'Efua Mensah registered at Tullow Oil Ghana', time: '2 hrs ago' },
+  { icon: FileText, color: 'bg-violet-100 text-violet-700', action: 'Student final report submitted', detail: 'Ama Johnson — Report submitted for review', time: '3 hrs ago' },
+  { icon: UserCheck, color: 'bg-amber-100 text-amber-700', action: 'Internship registration completed', detail: 'Nana Ama Osei registered with Stanbic Bank', time: '4 hrs ago' },
 ]
 
 const RECENT_REGISTRATIONS = [
-  { name: 'Yaa Asantewaa',   index: 'CS/0421/20', company: 'Bank of Ghana',       date: '2024-03-11', status: 'Pending' },
-  { name: 'Nana Ama Osei',   index: 'CS/0399/20', company: 'Stanbic Bank',        date: '2024-03-10', status: 'Approved' },
-  { name: 'Kwabena Frimpong',index: 'CS/0411/20', company: 'Ghana Water Company', date: '2024-03-09', status: 'Approved' },
-  { name: 'Akosua Dankwa',   index: 'CS/0403/20', company: 'Electricity Company', date: '2024-03-08', status: 'Pending' },
+  { name: 'Yaa Asantewaa',   index: 'CS/0421/20', company: 'Bank of Ghana',       date: '2024-03-11' },
+  { name: 'Nana Ama Osei',   index: 'CS/0399/20', company: 'Stanbic Bank',        date: '2024-03-10' },
+  { name: 'Kwabena Frimpong',index: 'CS/0411/20', company: 'Ghana Water Company', date: '2024-03-09' },
+  { name: 'Akosua Dankwa',   index: 'CS/0403/20', company: 'Electricity Company', date: '2024-03-08' },
 ]
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -99,18 +99,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatsCard icon={Users}      label="Total Students"     value="247"  color="green"  trend={5}  trendLabel="vs last semester" />
         <StatsCard icon={FileText}   label="Total Reports"      value="1,024" color="blue"  trend={12} trendLabel="this semester" />
         <StatsCard icon={Briefcase}  label="Active Internships" value="198"  color="amber"  trendLabel="Currently ongoing" />
-        <StatsCard icon={TrendingUp} label="Review Rate"        value="94%"  color="purple" trend={3}  trendLabel="above target" />
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
 
         {/* Bar chart */}
-        <div className="lg:col-span-2 card p-6">
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="section-title">Submissions per Week</h3>
@@ -149,45 +148,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Pie chart */}
-        <div className="card p-6">
-          <div className="mb-4">
-            <h3 className="section-title">Report Status</h3>
-            <p className="text-xs text-gray-400 font-body mt-0.5">Distribution across all submissions</p>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart>
-              <Pie
-                data={STATUS_PIE}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {STATUS_PIE.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v) => [`${v}%`, '']}
-                contentStyle={{ borderRadius: '12px', border: '1px solid #f0f0f0', fontSize: '12px' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-2">
-            {STATUS_PIE.map(s => (
-              <div key={s.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                  <span className="text-xs text-gray-600 font-body">{s.name}</span>
-                </div>
-                <span className="text-xs font-bold text-gray-700 font-heading">{s.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Bottom row */}
@@ -225,12 +185,11 @@ export default function AdminDashboard() {
               <Briefcase size={16} className="text-primary-600" />
               <h3 className="section-title">Recent Registrations</h3>
             </div>
-            <button className="text-xs text-primary-600 hover:text-primary-800 font-medium">View all</button>
           </div>
           <table className="w-full">
             <thead className="bg-gray-50/70">
               <tr>
-                {['Student', 'Company', 'Date', 'Status'].map(h => (
+                {['Student', 'Company', 'Date'].map(h => (
                   <th key={h} className="table-header text-left">{h}</th>
                 ))}
               </tr>
@@ -245,11 +204,6 @@ export default function AdminDashboard() {
                   <td className="table-cell text-sm text-gray-500">{r.company}</td>
                   <td className="table-cell text-xs text-gray-400 whitespace-nowrap">
                     {new Date(r.date).toLocaleDateString('en-GB', {day:'numeric',month:'short'})}
-                  </td>
-                  <td className="table-cell">
-                    <span className={r.status === 'Approved' ? 'badge-success' : 'badge-warning'}>
-                      {r.status}
-                    </span>
                   </td>
                 </tr>
               ))}

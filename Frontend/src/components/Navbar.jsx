@@ -103,16 +103,9 @@ export default function Navbar({ pageTitle, breadcrumb }) {
                             border border-gray-100 overflow-hidden animate-slide-up z-50 py-1">
               <button
                 onClick={() => { navigate('/profile'); setShowProfile(false) }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-600
-                                  hover:bg-gray-50 transition-colors font-body"
-              >
-                <User size={15} /> Profile
-              </button>
-              <button
-                onClick={() => { navigate('/settings'); setShowProfile(false) }}
                 className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors font-body"
               >
-                <LogOut size={15} /> Logout
+                <User size={15} /> Profile
               </button>
             </div>
           )}

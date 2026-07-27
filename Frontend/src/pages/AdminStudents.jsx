@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GraduationCap, Search, Mail, Briefcase, Calendar, MapPin, MoreVertical } from 'lucide-react'
 
 const STUDENTS_DATA = [
@@ -71,6 +72,7 @@ const STUDENTS_DATA = [
 ]
 
 export default function AdminStudents() {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDept, setFilterDept] = useState('all')
 
@@ -206,7 +208,7 @@ export default function AdminStudents() {
 
               <div className="flex items-center justify-between pt-3 border-t">
                 {getStatusBadge(student.status)}
-                <button className="text-primary-600 hover:text-primary-800 text-sm font-medium">
+                <button onClick={() => navigate(`/admin/students/${student.id}`)} className="text-primary-600 hover:text-primary-800 text-sm font-medium">
                   View Details
                 </button>
               </div>
