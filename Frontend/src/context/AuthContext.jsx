@@ -1,13 +1,7 @@
 import { createContext, useContext, useState } from 'react'
+import { apiRequest } from '../api'
 
 const AuthContext = createContext(null)
-
-// Mock users for demo
-const MOCK_USERS = {
-  student: { id: 1, name: 'Peter Nyarko', email: 'student@demo.com', role: 'student', avatar: 'PN' },
-  supervisor: { id: 2, name: 'Dr. Theresa', email: 'supervisor@demo.com', role: 'supervisor', avatar: 'AO' },
-  admin: { id: 3, name: 'Admin User', email: 'admin@demo.com', role: 'admin', avatar: 'AU' },
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -17,12 +11,23 @@ export function AuthProvider({ children }) {
     { id: 3, text: 'New feedback received from Dr Theresa', time: '3 hrs ago', read: true },
   ])
 
-  const login = (email, password) => {
-    // Demo login: any password works, role determined by email
-    if (email.includes('supervisor')) return setUser(MOCK_USERS.supervisor) || true
-    if (email.includes('admin')) return setUser(MOCK_USERS.admin) || true
-    setUser(MOCK_USERS.student)
-    return true
+  const login = async (username, password) => {
+    const data = await apiRequest('/auth/login/', {
+      method: 'POST',
+      body: { username, password },
+    })
+
+    const profile = data.profile || {}
+    const normalizedUser = {
+      id: data.user?.id,
+      name: `${data.user?.first_name || ''} ${data.user?.last_name || ''}`.trim() || data.user?.username,
+      email: data.user?.email,
+      role: data.role,
+      avatar: (data.user?.first_name || data.user?.username || 'U').slice(0, 2).toUpperCase(),
+      profile,
+    }
+    setUser(normalizedUser)
+    return normalizedUser
   }
 
   const logout = () => setUser(null)

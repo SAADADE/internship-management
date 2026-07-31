@@ -1,5 +1,9 @@
 import logging
 
+import logging
+
+from django.contrib.auth import authenticate, get_user_model, login
+from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.parsers import JSONParser, MultiPartParser
@@ -10,14 +14,18 @@ from rest_framework.views import APIView
 from .docx_builder import build_docx
 from .file_extractor import extract_text_from_file
 from .llm_service import generate_report_structure
-from .models import DailyLog, InternshipReportDraft, LogFeedback, StudentProfile, SupervisorProfile
+from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, StudentProfile, SupervisorProfile
 from .serializers import (
+    AuthLoginSerializer,
     BulkStatusUpdateSerializer,
     DailyLogSerializer,
     InternshipReportDraftSerializer,
+    InternshipSerializer,
+    PasswordChangeSerializer,
     ReportRequestSerializer,
     StudentProfileSerializer,
     SupervisorLogUpdateSerializer,
+    UserRegistrationSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +98,121 @@ class GenerateReportView(APIView):
         return response
 
 
+class AuthRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        user_model = get_user_model()
+        user = user_model.objects.create_user(
+            username=data["username"],
+            email=data["email"],
+            password=data["password"],
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+        )
+
+        if data["role"] == "supervisor":
+            supervisor = SupervisorProfile.objects.create(user=user, fullname=f"{data['first_name']} {data['last_name']}".strip(), email=data["email"])
+            profile_payload = {"fullname": supervisor.fullname, "email": supervisor.email}
+        else:
+            profile = StudentProfile.objects.create(
+                user=user,
+                sch_email=data["email"],
+                index_number=data.get("index_number", ""),
+                first_name=data["first_name"],
+                last_name=data["last_name"],
+                faculty=data.get("faculty", ""),
+                department=data.get("department", ""),
+                programme=data.get("programme", ""),
+                institution_name=data.get("institution_name", ""),
+                phone_number=data.get("phone_number", ""),
+            )
+            profile_payload = StudentProfileSerializer(profile).data
+
+        return Response(
+            {
+                "message": "Account created successfully.",
+                "role": data["role"],
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "role": data["role"],
+                },
+                "profile": profile_payload,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AuthLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AuthLoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        username_or_email = data["username"]
+        user = None
+        if username_or_email:
+            user_obj = get_user_model().objects.filter(Q(username=username_or_email) | Q(email__iexact=username_or_email)).first()
+            if user_obj:
+                user = authenticate(request, username=user_obj.username, password=data["password"])
+
+        if not user:
+            return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+
+        login(request, user)
+        role = "supervisor" if hasattr(user, "supervisor") else "student" if hasattr(user, "student") else "admin" if user.is_staff else "user"
+        profile = None
+        if role == "student":
+            profile = StudentProfile.objects.filter(user=user).first()
+        elif role == "supervisor":
+            profile = SupervisorProfile.objects.filter(user=user).first()
+
+        return Response(
+            {
+                "message": "Login successful.",
+                "role": role,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "role": role,
+                },
+                "profile": StudentProfileSerializer(profile).data if profile and role == "student" else {"fullname": profile.fullname, "email": profile.email} if profile and role == "supervisor" else {},
+            }
+        )
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PasswordChangeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        if not request.user.check_password(data["current_password"]):
+            return Response({"current_password": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(data["new_password"])
+        request.user.save(update_fields=["password"])
+        return Response({"message": "Password updated successfully."})
+
+
 class StudentProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -119,6 +242,23 @@ class StudentProfileView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
         return Response(serializer.data)
+
+
+class StudentInternshipView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        internships = Internship.objects.filter(student=profile).order_by("-created_at")
+        return Response(InternshipSerializer(internships, many=True).data)
+
+    def post(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        serializer = InternshipSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save(student=profile)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class StudentLogView(APIView):

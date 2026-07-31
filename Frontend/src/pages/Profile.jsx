@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { User, Mail, Shield, Edit3, Save, X, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { apiRequest } from '../api'
 
 export default function Profile() {
   const { user } = useAuth()
@@ -8,7 +9,12 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    role: user?.role || ''
+    role: user?.role || '',
+    faculty: user?.profile?.faculty || '',
+    department: user?.profile?.department || '',
+    programme: user?.profile?.programme || '',
+    institution_name: user?.profile?.institution_name || '',
+    phone_number: user?.profile?.phone_number || '',
   })
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
@@ -18,11 +24,37 @@ export default function Profile() {
   })
   const [passwordMessage, setPasswordMessage] = useState('')
 
-  const handleSave = () => {
-    // In a real app, this would update the user data via API
-    console.log('Saving profile:', formData)
-    setIsEditing(false)
-    // For demo, we'll just close edit mode
+  useEffect(() => {
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+      role: user?.role || '',
+      faculty: user?.profile?.faculty || '',
+      department: user?.profile?.department || '',
+      programme: user?.profile?.programme || '',
+      institution_name: user?.profile?.institution_name || '',
+      phone_number: user?.profile?.phone_number || '',
+    })
+  }, [user])
+
+  const handleSave = async () => {
+    try {
+      await apiRequest('/student/profile/', {
+        method: 'PATCH',
+        body: {
+          first_name: formData.name.split(' ')[0] || '',
+          last_name: formData.name.split(' ').slice(1).join(' ') || '',
+          faculty: formData.faculty,
+          department: formData.department,
+          programme: formData.programme,
+          institution_name: formData.institution_name,
+          phone_number: formData.phone_number,
+        },
+      })
+      setIsEditing(false)
+    } catch (err) {
+      setPasswordMessage(err.message || 'Unable to save profile.')
+    }
   }
 
   const handleCancel = () => {
@@ -34,7 +66,7 @@ export default function Profile() {
     setIsEditing(false)
   }
 
-  const handlePasswordSubmit = () => {
+  const handlePasswordSubmit = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
       setPasswordMessage('Please fill in all password fields.')
       return
@@ -50,10 +82,21 @@ export default function Profile() {
       return
     }
 
-    console.log('Changing password for', user?.email, passwordData)
-    setPasswordMessage('Password changed successfully.')
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    setShowPasswordForm(false)
+    try {
+      await apiRequest('/auth/change-password/', {
+        method: 'POST',
+        body: {
+          current_password: passwordData.currentPassword,
+          new_password: passwordData.newPassword,
+          confirm_password: passwordData.confirmPassword,
+        },
+      })
+      setPasswordMessage('Password changed successfully.')
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setShowPasswordForm(false)
+    } catch (err) {
+      setPasswordMessage(err.message || 'Unable to change password.')
+    }
   }
 
   const handlePasswordCancel = () => {
@@ -150,6 +193,40 @@ export default function Profile() {
               )}
             </div>
           </div>
+
+          {/* Additional profile fields */}
+          {isEditing ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
+                <input value={formData.faculty} onChange={(e) => setFormData(prev => ({ ...prev, faculty: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <input value={formData.department} onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Programme</label>
+                <input value={formData.programme} onChange={(e) => setFormData(prev => ({ ...prev, programme: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
+                <input value={formData.institution_name} onChange={(e) => setFormData(prev => ({ ...prev, institution_name: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input value={formData.phone_number} onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))} className="input-field" />
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 text-sm text-gray-600">
+              <div><span className="font-semibold text-gray-700">Faculty:</span> {formData.faculty || '—'}</div>
+              <div><span className="font-semibold text-gray-700">Department:</span> {formData.department || '—'}</div>
+              <div><span className="font-semibold text-gray-700">Programme:</span> {formData.programme || '—'}</div>
+              <div><span className="font-semibold text-gray-700">Institution:</span> {formData.institution_name || '—'}</div>
+              <div><span className="font-semibold text-gray-700">Phone Number:</span> {formData.phone_number || '—'}</div>
+            </div>
+          )}
 
           {/* Role */}
           <div className="flex items-center gap-4">

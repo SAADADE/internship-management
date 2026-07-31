@@ -18,6 +18,11 @@ class Student(models.Model):
     index_number = models.CharField(max_length=50, unique=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    faculty = models.CharField(max_length=150, blank=True)
+    department = models.CharField(max_length=150, blank=True)
+    programme = models.CharField(max_length=150, blank=True)
+    institution_name = models.CharField(max_length=255, blank=True)
+    phone_number = models.CharField(max_length=50, blank=True)
     supervisor = models.ForeignKey(
         "Supervisor",
         on_delete=models.SET_NULL,
@@ -45,10 +50,6 @@ class Student(models.Model):
 
     @property
     def university(self):
-        return ""
-
-    @property
-    def programme(self):
         return ""
 
     def __str__(self):

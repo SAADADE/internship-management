@@ -25,9 +25,20 @@ export default function Login() {
     setError('')
     if (!email || !password) return setError('Please enter your email and password.')
     setLoading(true)
-    await new Promise(r => setTimeout(r, 900)) // simulate API call
-    login(email, password)
-    navigate('/')
+    try {
+      const user = await login(email, password)
+      if (user?.role === 'supervisor') {
+        navigate('/supervisor')
+      } else if (user?.role === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/dashboard')
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to sign in.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

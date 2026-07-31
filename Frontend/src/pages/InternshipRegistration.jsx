@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CheckCircle, Building2, MapPin, User, Phone, Calendar } from 'lucide-react'
+import { apiRequest } from '../api'
 
 export default function InternshipRegistration() {
   const [form, setForm] = useState({
@@ -32,9 +33,24 @@ export default function InternshipRegistration() {
     const e2 = validate()
     if (Object.keys(e2).length) return setErrors(e2)
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
-    setLoading(false)
-    setSubmitted(true)
+    try {
+      await apiRequest('/student/internships/', {
+        method: 'POST',
+        body: {
+          company_name: form.companyName,
+          company_address: form.location,
+          internship_position: form.department || 'Internship',
+          internship_supervisor: form.supervisorName,
+          internship_supervisor_email: form.supervisorContact,
+          internship_duration: `${form.startDate} to ${form.endDate}`,
+        },
+      })
+      setSubmitted(true)
+    } catch (err) {
+      setErrors({ submit: err.message || 'Unable to submit registration.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (submitted) {
@@ -192,6 +208,8 @@ export default function InternshipRegistration() {
               onChange={e => set('description', e.target.value)}
             />
           </div>
+
+          {errors.submit && <p className="text-red-500 text-sm">{errors.submit}</p>}
 
           {/* Buttons */}
           <div className="flex gap-3 pt-2">

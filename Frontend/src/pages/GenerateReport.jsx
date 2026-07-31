@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered } from 'lucide-react'
+import { apiRequest } from '../api'
 
 const sectionConfig = [
   { key: 'abstract', label: 'Abstract', placeholder: 'Summarize the purpose, methods, and key outcomes of your internship experience.' },
@@ -70,12 +71,13 @@ export default function GenerateReport() {
   const [content, setContent] = useState({ abstract: '', introduction: '', conclusion: '' })
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleChange = (key, value) => {
     setContent((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     const emptySections = sectionConfig.filter(({ key }) => stripHtml(content[key]).length === 0)
@@ -85,8 +87,43 @@ export default function GenerateReport() {
       return
     }
 
-    setSubmitted(true)
-    setMessage(`Your report draft for ${user?.name || 'the student'} is ready for review.`)
+    setLoading(true)
+    setMessage('Saving your draft and generating the report...')
+
+    try {
+      await apiRequest('/student/report-draft/', {
+        method: 'POST',
+        body: {
+          introduction: content.introduction,
+          abstract: content.abstract,
+          conclusion: content.conclusion,
+        },
+      })
+
+      const blob = await apiRequest('/student/generate-report/', {
+        method: 'POST',
+        body: {},
+        expectBlob: true,
+        parseJson: false,
+      })
+
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'internship_report.docx'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      setSubmitted(true)
+      setMessage(`Your report draft for ${user?.name || 'the student'} is ready for review.`)
+    } catch (err) {
+      setSubmitted(false)
+      setMessage(err.message || 'Unable to generate the report right now.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -126,7 +163,9 @@ export default function GenerateReport() {
           )}
 
           <div className="flex flex-wrap gap-3">
-            <button type="submit" className="btn-primary">Generate Report </button>
+            <button type="submit" disabled={loading} className="btn-primary disabled:opacity-70">
+              {loading ? 'Generating...' : 'Generate Report'}
+            </button>
             <button type="button" onClick={() => setContent({ abstract: '', introduction: '', conclusion: '' })} className="btn-secondary">Clear</button>
           </div>
         </form>

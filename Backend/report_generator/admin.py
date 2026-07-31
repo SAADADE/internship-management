@@ -5,8 +5,8 @@ from .models import Internship, InternshipReportDraft, Log, Report, Review, Stud
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("sch_email", "index_number", "first_name", "last_name", "supervisor", "created_at")
-    search_fields = ("sch_email", "index_number", "first_name", "last_name")
+    list_display = ("sch_email", "index_number", "first_name", "last_name", "department", "programme", "supervisor", "created_at")
+    search_fields = ("sch_email", "index_number", "first_name", "last_name", "department", "programme")
 
 
 @admin.register(Supervisor)

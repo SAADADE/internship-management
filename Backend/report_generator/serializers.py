@@ -1,6 +1,7 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import DailyLog, InternshipReportDraft, LogFeedback, StudentProfile, Supervisor, SupervisorProfile
+from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, StudentProfile, Supervisor, SupervisorProfile
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
@@ -20,12 +21,76 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "index_number",
             "first_name",
             "last_name",
+            "faculty",
+            "department",
+            "programme",
+            "institution_name",
+            "phone_number",
             "supervisor",
             "supervisor_name",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "user", "supervisor_name", "created_at", "updated_at"]
+
+
+class UserRegistrationSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.ChoiceField(choices=["student", "supervisor"], default="student")
+    index_number = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    faculty = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    department = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    programme = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    institution_name = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    phone_number = serializers.CharField(required=False, allow_blank=True, max_length=50)
+
+    def validate(self, attrs):
+        user_model = get_user_model()
+        if user_model.objects.filter(username=attrs["username"]).exists():
+            raise serializers.ValidationError({"username": "A user with that username already exists."})
+        if user_model.objects.filter(email__iexact=attrs["email"]).exists():
+            raise serializers.ValidationError({"email": "A user with that email already exists."})
+        if attrs.get("role") == "student" and not attrs.get("index_number"):
+            raise serializers.ValidationError({"index_number": "Index number is required for students."})
+        return attrs
+
+
+class AuthLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return attrs
+
+
+class InternshipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Internship
+        fields = [
+            "internship_id",
+            "company_name",
+            "company_address",
+            "internship_position",
+            "internship_supervisor",
+            "internship_supervisor_email",
+            "internship_duration",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["internship_id", "status", "created_at", "updated_at"]
 
 
 class LogFeedbackSerializer(serializers.ModelSerializer):

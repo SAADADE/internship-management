@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiRequest } from '../api'
 
 const studentFields = [
   { label: 'Student Name', name: 'studentName', placeholder: 'Enter full name' },
@@ -19,6 +20,7 @@ export default function ReportUpload() {
     programme: '',
     level: '',
     institution: '',
+    weekNumber: '',
     mondayTasks: '',
     mondaySkills: '',
     mondayChallenges: '',
@@ -41,9 +43,39 @@ export default function ReportUpload() {
     fridaySolutions: ''
   })
 
+  const [errors, setErrors] = useState({ startDate: '', endDate: '' })
+  const [message, setMessage] = useState('')
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const validationErrors = {}
+    if (!formData.startDate) validationErrors.startDate = 'Start date is required.'
+    if (!formData.endDate) validationErrors.endDate = 'End date is required.'
+    if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+      validationErrors.endDate = 'End date must be after start date.'
+    }
+    setErrors(validationErrors)
+    if (Object.keys(validationErrors).length) return
+
+    try {
+      const payload = {
+        title: `Week ${formData.weekNumber || 1}`,
+        content: Object.entries(formData)
+          .filter(([key]) => !['studentName', 'studentId', 'department', 'programme', 'level', 'institution', 'weekNumber', 'startDate', 'endDate'].includes(key))
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('\n'),
+        date: formData.startDate,
+      }
+      await apiRequest('/student/logs/', { method: 'POST', body: payload })
+      setMessage('Weekly log submitted successfully.')
+    } catch (err) {
+      setMessage(err.message || 'Unable to submit weekly log.')
+    }
   }
 
   return (
@@ -89,7 +121,7 @@ export default function ReportUpload() {
             </div>
             <div>
               <label className="form-label">Week Number</label>
-              <input className="form-input" placeholder="e.g. Week 1" />
+              <input className="form-input" name="weekNumber" value={formData.weekNumber} onChange={handleChange} placeholder="e.g. Week 1" />
             </div>
             <div>
               <label className="form-label">Start Date</label>
@@ -169,6 +201,10 @@ export default function ReportUpload() {
             I confirm that the information submitted is accurate and represents the activities completed during this internship week.
           </label>
         </div>
+
+        {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
+
+        {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
 
         <div className="flex flex-wrap gap-3">
           <button type="button" className="btn-secondary">Save Draft</button>
