@@ -15,6 +15,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import Profile from './pages/Profile'
 import Feedback from './pages/Feedback'
 import GenerateReport from './pages/GenerateReport'
+import ViewFeedbackDetails from './pages/LogSheetView'
 import AdminStudents from './pages/AdminStudents'
 import AdminStudentView from './pages/AdminStudentView'
 import AdminReports from './pages/AdminReports'
@@ -85,6 +86,11 @@ export default function App() {
           <Route path="/feedback" element={
             <ProtectedRoute roles={['student']}>
               <Layout><Feedback /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/feedback/log-sheet/:id" element={
+            <ProtectedRoute roles={['student']}>
+              <Layout><ViewFeedbackDetails /></Layout>
             </ProtectedRoute>
           } />
 

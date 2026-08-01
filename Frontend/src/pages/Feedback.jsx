@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MessageSquare, Star, Calendar, User, CheckCircle, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -55,6 +56,7 @@ const FEEDBACK_DATA = [
 
 export default function Feedback() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [selectedFeedback, setSelectedFeedback] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
 
@@ -231,8 +233,11 @@ export default function Feedback() {
                 <p className="text-sm text-gray-700 leading-relaxed">{selectedFeedback.feedback}</p>
               </div>
 
-              <button className="w-full btn-primary text-sm">
-                View Full Report
+              <button
+                onClick={() => navigate(`/feedback/log-sheet/${selectedFeedback.id}`)}
+                className="w-full btn-primary text-sm"
+              >
+                View Feedback details
               </button>
             </div>
           ) : (
