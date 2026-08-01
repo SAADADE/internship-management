@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react'
-import { apiRequest } from '../api'
+import { loginUser } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -12,10 +12,7 @@ export function AuthProvider({ children }) {
   ])
 
   const login = async (username, password) => {
-    const data = await apiRequest('/auth/login/', {
-      method: 'POST',
-      body: { username, password },
-    })
+    const data = await loginUser({ username, password })
 
     const profile = data.profile || {}
     const normalizedUser = {

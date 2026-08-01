@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { User, Mail, Shield, Edit3, Save, X, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { apiRequest } from '../api'
+import { changePassword, updateStudentProfile } from '../api'
 
 export default function Profile() {
   const { user } = useAuth()
@@ -39,17 +39,15 @@ export default function Profile() {
 
   const handleSave = async () => {
     try {
-      await apiRequest('/student/profile/', {
-        method: 'PATCH',
-        body: {
-          first_name: formData.name.split(' ')[0] || '',
-          last_name: formData.name.split(' ').slice(1).join(' ') || '',
-          faculty: formData.faculty,
-          department: formData.department,
-          programme: formData.programme,
-          institution_name: formData.institution_name,
-          phone_number: formData.phone_number,
-        },
+      await updateStudentProfile({
+        sch_email: formData.email,
+        first_name: formData.name.split(' ')[0] || '',
+        last_name: formData.name.split(' ').slice(1).join(' ') || '',
+        faculty: formData.faculty,
+        department: formData.department,
+        programme: formData.programme,
+        institution_name: formData.institution_name,
+        phone_number: formData.phone_number,
       })
       setIsEditing(false)
     } catch (err) {
@@ -83,13 +81,10 @@ export default function Profile() {
     }
 
     try {
-      await apiRequest('/auth/change-password/', {
-        method: 'POST',
-        body: {
-          current_password: passwordData.currentPassword,
-          new_password: passwordData.newPassword,
-          confirm_password: passwordData.confirmPassword,
-        },
+      await changePassword({
+        current_password: passwordData.currentPassword,
+        new_password: passwordData.newPassword,
+        confirm_password: passwordData.confirmPassword,
       })
       setPasswordMessage('Password changed successfully.')
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })

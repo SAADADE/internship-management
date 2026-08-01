@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, GraduationCap, ArrowRight, CheckCircle } from 'lucide-react'
-import { apiRequest } from '../api'
+import { registerUser } from '../api'
 
 const FEATURES = [
   'Track internship registrations in real-time',
@@ -149,22 +149,19 @@ export default function Signup() {
 
     setLoading(true)
     try {
-      await apiRequest('/auth/register/', {
-        method: 'POST',
-        body: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-          index_number: formData.studentId,
-          faculty: formData.faculty,
-          department: formData.department,
-          programme: formData.program,
-          institution_name: formData.institution || '',
-          phone_number: formData.phone,
-        },
+      await registerUser({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        index_number: formData.studentId,
+        faculty: formData.faculty,
+        department: formData.department,
+        programme: formData.program,
+        institution_name: formData.institution || '',
+        phone_number: formData.phone,
       })
       setSuccess('Your account was created successfully. You can now sign in.')
       setFormData(initialFormState)

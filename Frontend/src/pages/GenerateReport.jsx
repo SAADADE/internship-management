@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered } from 'lucide-react'
-import { apiRequest } from '../api'
+import { generateStudentReport, saveReportDraft } from '../api'
 
 const sectionConfig = [
   { key: 'abstract', label: 'Abstract', placeholder: 'Summarize the purpose, methods, and key outcomes of your internship experience.' },
@@ -91,21 +91,13 @@ export default function GenerateReport() {
     setMessage('Saving your draft and generating the report...')
 
     try {
-      await apiRequest('/student/report-draft/', {
-        method: 'POST',
-        body: {
-          introduction: content.introduction,
-          abstract: content.abstract,
-          conclusion: content.conclusion,
-        },
+      await saveReportDraft({
+        introduction: content.introduction,
+        abstract: content.abstract,
+        conclusion: content.conclusion,
       })
 
-      const blob = await apiRequest('/student/generate-report/', {
-        method: 'POST',
-        body: {},
-        expectBlob: true,
-        parseJson: false,
-      })
+      const blob = await generateStudentReport()
 
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')

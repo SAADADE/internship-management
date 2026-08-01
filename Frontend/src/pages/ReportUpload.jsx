@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { apiRequest } from '../api'
+import { createStudentLog } from '../api'
 
 const studentFields = [
   { label: 'Student Name', name: 'studentName', placeholder: 'Enter full name' },
@@ -21,6 +21,8 @@ export default function ReportUpload() {
     level: '',
     institution: '',
     weekNumber: '',
+    startDate: '',
+    endDate: '',
     mondayTasks: '',
     mondaySkills: '',
     mondayChallenges: '',
@@ -65,13 +67,23 @@ export default function ReportUpload() {
     try {
       const payload = {
         title: `Week ${formData.weekNumber || 1}`,
-        content: Object.entries(formData)
-          .filter(([key]) => !['studentName', 'studentId', 'department', 'programme', 'level', 'institution', 'weekNumber', 'startDate', 'endDate'].includes(key))
-          .map(([key, value]) => `${key}: ${value}`)
+        content: [
+          `Student Name: ${formData.studentName || ''}`,
+          `Student ID: ${formData.studentId || ''}`,
+          `Department: ${formData.department || ''}`,
+          `Programme: ${formData.programme || ''}`,
+          `Level: ${formData.level || ''}`,
+          `Institution: ${formData.institution || ''}`,
+          ...Object.entries(formData)
+            .filter(([key]) => !['studentName', 'studentId', 'department', 'programme', 'level', 'institution', 'weekNumber', 'startDate', 'endDate'].includes(key))
+            .map(([key, value]) => `${key}: ${value}`),
+        ]
+          .filter(Boolean)
           .join('\n'),
-        date: formData.startDate,
+        date: formData.startDate || null,
+        week_number: Number(formData.weekNumber) || null,
       }
-      await apiRequest('/student/logs/', { method: 'POST', body: payload })
+      await createStudentLog(payload)
       setMessage('Weekly log submitted successfully.')
     } catch (err) {
       setMessage(err.message || 'Unable to submit weekly log.')
@@ -125,11 +137,11 @@ export default function ReportUpload() {
             </div>
             <div>
               <label className="form-label">Start Date</label>
-              <input className="form-input" placeholder="YYYY-MM-DD" />
+              <input className="form-input" name="startDate" value={formData.startDate} onChange={handleChange} placeholder="YYYY-MM-DD" />
             </div>
             <div>
               <label className="form-label">End Date</label>
-              <input className="form-input" placeholder="YYYY-MM-DD" />
+              <input className="form-input" name="endDate" value={formData.endDate} onChange={handleChange} placeholder="YYYY-MM-DD" />
             </div>
           </div>
         </section>

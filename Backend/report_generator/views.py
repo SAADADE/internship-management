@@ -1,13 +1,25 @@
 import logging
 
-import logging
-
 from django.contrib.auth import authenticate, get_user_model, login
 from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
+
+
+class IsStudentUser(IsAuthenticated):
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return getattr(request.user, "student", None) is not None
+
+
+class IsSupervisorUser(IsAuthenticated):
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return getattr(request.user, "supervisor", None) is not None
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -214,7 +226,7 @@ class ChangePasswordView(APIView):
 
 
 class StudentProfileView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -245,7 +257,7 @@ class StudentProfileView(APIView):
 
 
 class StudentInternshipView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -262,7 +274,7 @@ class StudentInternshipView(APIView):
 
 
 class StudentLogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -279,7 +291,7 @@ class StudentLogView(APIView):
 
 
 class StudentLogDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def patch(self, request, log_id):
         profile = StudentProfile.objects.get(user=request.user)
@@ -296,7 +308,7 @@ class StudentLogDetailView(APIView):
 
 
 class StudentReportDraftView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def post(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -309,7 +321,7 @@ class StudentReportDraftView(APIView):
 
 
 class StudentGenerateReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def post(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -376,7 +388,7 @@ class StudentGenerateReportView(APIView):
 
 
 class SupervisorStudentsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupervisorUser]
 
     def get(self, request):
         supervisor = SupervisorProfile.objects.get(user=request.user)
@@ -385,7 +397,7 @@ class SupervisorStudentsView(APIView):
 
 
 class SupervisorLogsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupervisorUser]
 
     def get(self, request):
         supervisor = SupervisorProfile.objects.get(user=request.user)
@@ -394,7 +406,7 @@ class SupervisorLogsView(APIView):
 
 
 class SupervisorLogDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupervisorUser]
 
     def patch(self, request, log_id):
         supervisor = SupervisorProfile.objects.get(user=request.user)
@@ -419,7 +431,7 @@ class SupervisorLogDetailView(APIView):
 
 
 class SupervisorBulkStatusView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupervisorUser]
 
     def post(self, request):
         supervisor = SupervisorProfile.objects.get(user=request.user)

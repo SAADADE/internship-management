@@ -59,6 +59,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         return attrs
 
 
+
 class AuthLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -118,6 +119,7 @@ class DailyLogSerializer(serializers.ModelSerializer):
             "title",
             "content",
             "status",
+            "week_number",
             "feedback",
             "created_at",
             "updated_at",
