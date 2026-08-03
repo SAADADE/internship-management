@@ -15,6 +15,18 @@ const studentFields = [
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
+function buildInitialErrors() {
+  return {
+    startDate: '',
+    endDate: '',
+    achievements: '',
+    ...Object.fromEntries(days.flatMap((day) => {
+      const key = day.toLowerCase()
+      return [[`${key}Tasks`, ''], [`${key}Skills`, '']]
+    }))
+  }
+}
+
 function buildInitialFormData(profile = {}, internship = {}, user = null) {
   const firstName = profile?.first_name || profile?.firstName || user?.profile?.first_name || user?.first_name || ''
   const lastName = profile?.last_name || profile?.lastName || user?.profile?.last_name || user?.last_name || ''
@@ -68,11 +80,8 @@ export default function ReportUpload() {
   )
 
   const [formData, setFormData] = useState(initialFormData)
-  const [errors, setErrors] = useState({
-    startDate: '',
-    endDate: '',
-    achievements: ''
-  })
+  const [errors, setErrors] = useState(buildInitialErrors)
+  const [isSubmitted, setIsSubmitted] = useState(false)
 
   useEffect(() => {
     const nextValues = buildInitialFormData(resolvedProfile, resolvedInternship, user)
@@ -123,14 +132,92 @@ export default function ReportUpload() {
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+
     if (name === 'achievements') {
       setErrors((prev) => ({ ...prev, achievements: value.trim() ? '' : 'Please add at least one key achievement.' }))
+      return
+    }
+
+    if (name.endsWith('Tasks') || name.endsWith('Skills')) {
+      setErrors((prev) => ({ ...prev, [name]: value.trim() ? '' : `Please enter ${name.endsWith('Tasks') ? 'the tasks performed' : 'the skills learned'}.` }))
     }
   }
 
   const setField = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
     setErrors((prev) => ({ ...prev, [name]: '' }))
+  }
+
+  const validateForm = () => {
+    const nextErrors = buildInitialErrors()
+
+    if (!formData.startDate.trim()) {
+      nextErrors.startDate = 'Please select a start date.'
+    }
+
+    if (!formData.endDate.trim()) {
+      nextErrors.endDate = 'Please select an end date.'
+    }
+
+    if (!formData.achievements.trim()) {
+      nextErrors.achievements = 'Please add at least one key achievement.'
+    }
+
+    days.forEach((day) => {
+      const taskKey = `${day.toLowerCase()}Tasks`
+      const skillKey = `${day.toLowerCase()}Skills`
+
+      if (!formData[taskKey].trim()) {
+        nextErrors[taskKey] = 'Please enter the tasks performed.'
+      }
+
+      if (!formData[skillKey].trim()) {
+        nextErrors[skillKey] = 'Please enter the skills learned.'
+      }
+    })
+
+    return nextErrors
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+
+    const nextErrors = validateForm()
+    setErrors(nextErrors)
+
+    const hasErrors = Object.values(nextErrors).some(Boolean)
+    if (hasErrors) {
+      return
+    }
+
+    setIsSubmitted(true)
+  }
+
+  const handleSubmitAnother = () => {
+    setIsSubmitted(false)
+    setFormData(buildInitialFormData(resolvedProfile, resolvedInternship, user))
+    setErrors(buildInitialErrors())
+  }
+
+  if (isSubmitted) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 animate-fade-in">
+        <div className="card p-8 text-center space-y-5">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <div className="space-y-2">
+            <h2 className="font-heading text-2xl font-bold text-gray-900">Weekly log submitted successfully</h2>
+            <p className="text-sm text-gray-600">Your internship weekly log has been recorded and is ready for review.</p>
+          </div>
+          <button type="button" onClick={handleSubmitAnother} className="btn-primary">
+            Submit Another
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -244,7 +331,9 @@ export default function ReportUpload() {
                     value={formData[taskKey]}
                     onChange={handleChange}
                     placeholder={`Describe the tasks completed on ${day.toLowerCase()}.`}
+                    required
                   />
+                  {errors[taskKey] && <p className="text-red-500 text-xs mt-1">{errors[taskKey]}</p>}
                 </div>
 
                 <div>
@@ -255,7 +344,9 @@ export default function ReportUpload() {
                     value={formData[skillKey]}
                     onChange={handleChange}
                     placeholder={`Mention the skills gained on ${day.toLowerCase()}.`}
+                    required
                   />
+                  {errors[skillKey] && <p className="text-red-500 text-xs mt-1">{errors[skillKey]}</p>}
                 </div>
 
                 <div>
@@ -292,7 +383,7 @@ export default function ReportUpload() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button type="submit" className="btn-primary">Submit Weekly Log</button>
+          <button type="button" onClick={handleSubmit} className="btn-primary">Submit Weekly Log</button>
         </div>
       </div>
     </div>
