@@ -27,6 +27,7 @@ class BackendApiTests(TestCase):
             faculty="Engineering",
             department="Computer Science",
             programme="BSc Computer Science",
+            level="300",
             institution_name="University of Example",
             phone_number="+233200000000",
         )
@@ -46,6 +47,7 @@ class BackendApiTests(TestCase):
                 "faculty": "Engineering",
                 "department": "Computer Science",
                 "programme": "BSc Computer Science",
+                "level": "300",
                 "institution_name": "University of Example",
                 "phone_number": "+233200000001",
             },
@@ -54,7 +56,9 @@ class BackendApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertTrue(self.user_model.objects.filter(username="ada").exists())
-        self.assertTrue(Student.objects.filter(sch_email="ada@example.com").exists())
+        student = Student.objects.get(sch_email="ada@example.com")
+        self.assertEqual(student.level, "300")
+        self.assertEqual(response.data["profile"]["level"], "300")
 
     def test_login_returns_user_payload_and_sets_session(self):
         user, _ = self.create_student_user()
@@ -76,7 +80,7 @@ class BackendApiTests(TestCase):
 
         response = self.client.patch(
             "/api/student/profile/",
-            {"first_name": "Grace", "department": "Software Engineering"},
+            {"first_name": "Grace", "department": "Software Engineering", "level": "400"},
             format="json",
         )
 
@@ -84,6 +88,7 @@ class BackendApiTests(TestCase):
         student.refresh_from_db()
         self.assertEqual(student.first_name, "Grace")
         self.assertEqual(student.department, "Software Engineering")
+        self.assertEqual(student.level, "400")
 
     def test_internship_registration_creates_internship_for_authenticated_student(self):
         user, student = self.create_student_user()

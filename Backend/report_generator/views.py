@@ -141,6 +141,7 @@ class AuthRegisterView(APIView):
                 faculty=data.get("faculty", ""),
                 department=data.get("department", ""),
                 programme=data.get("programme", ""),
+                level=data.get("level", ""),
                 institution_name=data.get("institution_name", ""),
                 phone_number=data.get("phone_number", ""),
             )

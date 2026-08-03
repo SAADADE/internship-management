@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar } from 'lucide-react'
-import { getStudentProfile } from '../api'
+import { getStudentProfile, updateStudentProfile } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { getStoredInternship, getStoredProfile, saveProfile } from '../utils/storage'
 
@@ -14,12 +14,15 @@ const studentFields = [
 ]
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const levels = ['100', '200', '300', '400']
 
 function buildInitialErrors() {
   return {
     startDate: '',
     endDate: '',
     achievements: '',
+    level: '',
+    confirmation: '',
     ...Object.fromEntries(days.flatMap((day) => {
       const key = day.toLowerCase()
       return [[`${key}Tasks`, ''], [`${key}Skills`, '']]
@@ -63,7 +66,8 @@ function buildInitialFormData(profile = {}, internship = {}, user = null) {
     departmentUnit: internship?.internship_position || '',
     supervisorName: internship?.internship_supervisor || '',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    confirmation: false,
   }
 }
 
@@ -82,6 +86,8 @@ export default function ReportUpload() {
   const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState(buildInitialErrors)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSavingLevel, setIsSavingLevel] = useState(false)
+  const [levelMessage, setLevelMessage] = useState('')
 
   useEffect(() => {
     const nextValues = buildInitialFormData(resolvedProfile, resolvedInternship, user)
@@ -130,8 +136,14 @@ export default function ReportUpload() {
   }, [user?.role, user?.id, resolvedInternship])
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    const { name, value, type, checked } = e.target
+    const fieldValue = type === 'checkbox' ? checked : value
+    setFormData((prev) => ({ ...prev, [name]: fieldValue }))
+
+    if (name === 'confirmation') {
+      setErrors((prev) => ({ ...prev, confirmation: fieldValue ? '' : 'Please confirm the information is accurate before submitting.' }))
+      return
+    }
 
     if (name === 'achievements') {
       setErrors((prev) => ({ ...prev, achievements: value.trim() ? '' : 'Please add at least one key achievement.' }))
@@ -148,6 +160,27 @@ export default function ReportUpload() {
     setErrors((prev) => ({ ...prev, [name]: '' }))
   }
 
+  const handleLevelChange = async (e) => {
+    const { value } = e.target
+    setFormData((prev) => ({ ...prev, level: value }))
+    setErrors((prev) => ({ ...prev, level: value ? '' : 'Please select your level.' }))
+    setLevelMessage('')
+    setIsSavingLevel(true)
+
+    try {
+      const updatedProfile = await updateStudentProfile({ level: value })
+      saveProfile({
+        ...storedProfile,
+        ...updatedProfile,
+        level: updatedProfile?.level || value,
+      })
+    } catch {
+      setLevelMessage('Unable to save your level. Please try again.')
+    } finally {
+      setIsSavingLevel(false)
+    }
+  }
+
   const validateForm = () => {
     const nextErrors = buildInitialErrors()
 
@@ -161,6 +194,14 @@ export default function ReportUpload() {
 
     if (!formData.achievements.trim()) {
       nextErrors.achievements = 'Please add at least one key achievement.'
+    }
+
+    if (!formData.level) {
+      nextErrors.level = 'Please select your level.'
+    }
+
+    if (!formData.confirmation) {
+      nextErrors.confirmation = 'Please confirm the information is accurate before submitting.'
     }
 
     days.forEach((day) => {
@@ -234,12 +275,32 @@ export default function ReportUpload() {
             {studentFields.map((field) => (
               <div key={field.name}>
                 <label className="form-label">{field.label}</label>
-                <input
-                  className="form-input bg-gray-50"
-                  name={field.name}
-                  value={formData[field.name]}
-                  readOnly
-                />
+                {field.name === 'level' ? (
+                  <>
+                    <select
+                      className="form-input"
+                      name="level"
+                      value={formData.level}
+                      onChange={handleLevelChange}
+                      disabled={isSavingLevel}
+                    >
+                      <option value="">Select level</option>
+                      {levels.map((level) => (
+                        <option key={level} value={level}>{level}</option>
+                      ))}
+                    </select>
+                    {isSavingLevel && <p className="mt-1 text-xs text-gray-500">Saving level...</p>}
+                    {levelMessage && <p className="mt-1 text-xs text-red-500">{levelMessage}</p>}
+                    {errors.level && <p className="mt-1 text-xs text-red-500">{errors.level}</p>}
+                  </>
+                ) : (
+                  <input
+                    className="form-input bg-gray-50"
+                    name={field.name}
+                    value={formData[field.name]}
+                    readOnly
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -376,14 +437,29 @@ export default function ReportUpload() {
         </section>
 
         <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-4">
-          <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-          <label className="text-sm text-gray-600">
+          <input
+            id="log-confirmation"
+            name="confirmation"
+            type="checkbox"
+            checked={formData.confirmation}
+            onChange={handleChange}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          <label htmlFor="log-confirmation" className="text-sm text-gray-600">
             I confirm that the information submitted is accurate and represents the activities completed during this internship week.
           </label>
         </div>
+        {errors.confirmation && <p className="text-red-500 text-xs -mt-5">{errors.confirmation}</p>}
 
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={handleSubmit} className="btn-primary">Submit Weekly Log</button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!formData.confirmation}
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Submit Weekly Log
+          </button>
         </div>
       </div>
     </div>

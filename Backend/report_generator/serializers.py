@@ -24,6 +24,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "faculty",
             "department",
             "programme",
+            "level",
             "institution_name",
             "phone_number",
             "supervisor",
@@ -45,6 +46,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     faculty = serializers.CharField(required=False, allow_blank=True, max_length=150)
     department = serializers.CharField(required=False, allow_blank=True, max_length=150)
     programme = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    level = serializers.CharField(required=False, allow_blank=True, max_length=10)
     institution_name = serializers.CharField(required=False, allow_blank=True, max_length=255)
     phone_number = serializers.CharField(required=False, allow_blank=True, max_length=50)
 

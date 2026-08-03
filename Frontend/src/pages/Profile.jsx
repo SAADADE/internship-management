@@ -13,6 +13,7 @@ export default function Profile() {
     faculty: user?.profile?.faculty || '',
     department: user?.profile?.department || '',
     programme: user?.profile?.programme || '',
+    level: user?.profile?.level || '',
     institution_name: user?.profile?.institution_name || '',
     phone_number: user?.profile?.phone_number || '',
   })
@@ -32,6 +33,7 @@ export default function Profile() {
       faculty: user?.profile?.faculty || '',
       department: user?.profile?.department || '',
       programme: user?.profile?.programme || '',
+      level: user?.profile?.level || '',
       institution_name: user?.profile?.institution_name || '',
       phone_number: user?.profile?.phone_number || '',
     })
@@ -46,6 +48,7 @@ export default function Profile() {
         faculty: formData.faculty,
         department: formData.department,
         programme: formData.programme,
+        level: formData.level,
         institution_name: formData.institution_name,
         phone_number: formData.phone_number,
       })
@@ -203,6 +206,10 @@ export default function Profile() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Programme</label>
                 <input value={formData.programme} onChange={(e) => setFormData(prev => ({ ...prev, programme: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                <input value={formData.level} onChange={(e) => setFormData(prev => ({ ...prev, level: e.target.value }))} className="input-field" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>

@@ -21,6 +21,7 @@ class Student(models.Model):
     faculty = models.CharField(max_length=150, blank=True)
     department = models.CharField(max_length=150, blank=True)
     programme = models.CharField(max_length=150, blank=True)
+    level = models.CharField(max_length=10, blank=True)
     institution_name = models.CharField(max_length=255, blank=True)
     phone_number = models.CharField(max_length=50, blank=True)
     supervisor = models.ForeignKey(
