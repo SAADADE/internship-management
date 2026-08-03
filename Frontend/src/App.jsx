@@ -5,7 +5,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import StudentDashboard from './pages/StudentDashboard'
 import InternshipRegistration from './pages/InternshipRegistration'
-import ReportUpload from './pages/ReportUpload'
+import LogsUpload from './pages/LogsUpload'
 import ViewReports from './pages/ViewReports'
 import SupervisorDashboard from './pages/SupervisorDashboard'
 import ReportReview from './pages/ReportReview'
@@ -65,12 +65,12 @@ export default function App() {
           } />
           <Route path="/reports/upload" element={
             <ProtectedRoute roles={['student']}>
-              <Layout><ReportUpload /></Layout>
+              <Layout><LogsUpload /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/upload" element={
             <ProtectedRoute roles={['student']}>
-              <Layout><ReportUpload /></Layout>
+              <Layout><LogsUpload /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/reports" element={

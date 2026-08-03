@@ -21,12 +21,17 @@ export async function apiRequest(path, { method = 'GET', body, auth, headers = {
     Object.assign(requestHeaders, buildBasicAuthHeader(auth.username, auth.password))
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: requestHeaders,
-    body: payload,
-    credentials: 'include',
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: requestHeaders,
+      body: payload,
+      credentials: 'include',
+    })
+  } catch (error) {
+    throw new Error('Unable to reach the server. Please make sure the backend is running and try again.')
+  }
 
   if (!response.ok) {
     let errorData = null

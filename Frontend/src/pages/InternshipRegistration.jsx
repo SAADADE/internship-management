@@ -1,15 +1,32 @@
-import { useState } from 'react'
-import { CheckCircle, Building2, MapPin, User, Phone, Calendar } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { CheckCircle, Building2, MapPin, User, Mail, Calendar, PlusCircle } from 'lucide-react'
 import { createStudentInternship } from '../api'
+import { getStoredProfile, getCompanyOptions, saveCustomCompany, saveInternship } from '../utils/storage'
 
 export default function InternshipRegistration() {
   const [form, setForm] = useState({
-    companyName: '', location: '', supervisorName: '', supervisorContact: '',
+    companyName: '', location: '', supervisorName: '', supervisorEmail: '',
     startDate: '', endDate: '', department: '', description: '',
   })
+  const [customCompany, setCustomCompany] = useState('')
+  const [showCustomCompany, setShowCustomCompany] = useState(false)
+  const [profile, setProfile] = useState(getStoredProfile())
+  const companyOptions = useMemo(() => getCompanyOptions(), [showCustomCompany])
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    const storedProfile = getStoredProfile()
+    if (storedProfile) {
+      setProfile(storedProfile)
+      setForm((current) => ({
+        ...current,
+        supervisorName: current.supervisorName || `${storedProfile.firstName || ''} ${storedProfile.lastName || ''}`.trim(),
+        supervisorEmail: current.supervisorEmail || storedProfile.email || '',
+      }))
+    }
+  }, [])
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }))
@@ -34,13 +51,22 @@ export default function InternshipRegistration() {
     if (Object.keys(e2).length) return setErrors(e2)
     setLoading(true)
     try {
-      await createStudentInternship({
+      const payload = {
         company_name: form.companyName,
         company_address: form.location,
         internship_position: form.department || 'Internship',
         internship_supervisor: form.supervisorName,
-        internship_supervisor_email: form.supervisorContact,
+        internship_supervisor_email: form.supervisorEmail,
         internship_duration: `${form.startDate} to ${form.endDate}`,
+      }
+      await createStudentInternship(payload)
+      saveInternship({
+        ...payload,
+        studentName: `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim(),
+        studentId: profile?.studentId || '',
+        department: profile?.department || '',
+        program: profile?.program || '',
+        institution: profile?.institution || '',
       })
       setSubmitted(true)
     } catch (err) {
@@ -93,12 +119,48 @@ export default function InternshipRegistration() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Company Name *</label>
-                <input
+                <select
                   className={`form-input ${errors.companyName ? 'border-red-300 focus:ring-red-400' : ''}`}
-                  placeholder="e.g. Ghana Revenue Authority"
                   value={form.companyName}
-                  onChange={e => set('companyName', e.target.value)}
-                />
+                  onChange={(e) => {
+                    const value = e.target.value
+                    set('companyName', value)
+                    if (value === '__custom__') {
+                      setShowCustomCompany(true)
+                      set('companyName', '')
+                    }
+                  }}
+                >
+                  <option value="">Select a company</option>
+                  {companyOptions.map((company) => (
+                    <option key={company} value={company}>{company}</option>
+                  ))}
+                  <option value="__custom__">Add a company not listed</option>
+                </select>
+                {showCustomCompany && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      className="form-input"
+                      placeholder="Enter company name"
+                      value={customCompany}
+                      onChange={(e) => setCustomCompany(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextCompany = saveCustomCompany(customCompany)
+                        if (customCompany.trim()) {
+                          set('companyName', customCompany.trim())
+                          setShowCustomCompany(false)
+                          setCustomCompany('')
+                        }
+                      }}
+                      className="btn-secondary px-3 py-2"
+                    >
+                      <PlusCircle size={16} />
+                    </button>
+                  </div>
+                )}
                 {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
               </div>
               <div>
@@ -151,13 +213,14 @@ export default function InternshipRegistration() {
               </div>
               <div>
                 <label className="form-label">
-                  <span className="flex items-center gap-1.5"><Phone size={12} /> Contact / Email</span>
+                  <span className="flex items-center gap-1.5"><Mail size={12} /> Supervisor Email</span>
                 </label>
                 <input
+                  type="email"
                   className="form-input"
-                  placeholder="+233 20 000 0000"
-                  value={form.supervisorContact}
-                  onChange={e => set('supervisorContact', e.target.value)}
+                  placeholder="supervisor@example.com"
+                  value={form.supervisorEmail}
+                  onChange={e => set('supervisorEmail', e.target.value)}
                 />
               </div>
             </div>
@@ -218,7 +281,6 @@ export default function InternshipRegistration() {
                 </span>
               ) : 'Submit Registration'}
             </button>
-            <button type="button" className="btn-secondary px-6">Save Draft</button>
           </div>
         </form>
       </div>

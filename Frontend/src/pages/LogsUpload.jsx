@@ -1,25 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Calendar } from 'lucide-react'
+import { getStudentProfile } from '../api'
+import { useAuth } from '../context/AuthContext'
+import { getStoredInternship, getStoredProfile, saveProfile } from '../utils/storage'
 
 const studentFields = [
-  { label: 'Student Name', name: 'studentName', placeholder: 'Enter full name' },
-  { label: 'Student ID', name: 'studentId', placeholder: 'Enter student ID' },
-  { label: 'Department', name: 'department', placeholder: 'Department name' },
-  { label: 'Programme', name: 'programme', placeholder: 'Programme name' },
-  { label: 'Level', name: 'level', placeholder: 'e.g. 300' },
-  { label: 'Institution', name: 'institution', placeholder: 'Institution name' }
+  { label: 'Student Name', name: 'studentName' },
+  { label: 'Student ID', name: 'studentId' },
+  { label: 'Department', name: 'department' },
+  { label: 'Programme', name: 'programme' },
+  { label: 'Level', name: 'level' },
+  { label: 'Institution', name: 'institution' }
 ]
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
-export default function ReportUpload() {
-  const [formData, setFormData] = useState({
-    studentName: '',
-    studentId: '',
-    department: '',
-    programme: '',
-    level: '',
-    institution: '',
+function buildInitialFormData(profile = {}, internship = {}, user = null) {
+  const firstName = profile?.first_name || profile?.firstName || user?.profile?.first_name || user?.first_name || ''
+  const lastName = profile?.last_name || profile?.lastName || user?.profile?.last_name || user?.last_name || ''
+
+  return {
+    studentName: [firstName, lastName].filter(Boolean).join(' ').trim() || user?.name || '',
+    studentId: profile?.index_number || profile?.studentId || profile?.indexNumber || '',
+    department: profile?.department || '',
+    programme: profile?.programme || profile?.program || '',
+    level: profile?.level || '',
+    institution: profile?.institution_name || profile?.institution || '',
     mondayTasks: '',
     mondaySkills: '',
     mondayChallenges: '',
@@ -40,17 +46,86 @@ export default function ReportUpload() {
     fridaySkills: '',
     fridayChallenges: '',
     fridaySolutions: '',
+    achievements: '',
+    companyName: internship?.company_name || '',
+    departmentUnit: internship?.internship_position || '',
+    supervisorName: internship?.internship_supervisor || '',
     startDate: '',
     endDate: ''
-  })
+  }
+}
+
+export default function ReportUpload() {
+  const { user } = useAuth()
+  const storedProfile = useMemo(() => getStoredProfile() || {}, [])
+  const storedInternship = useMemo(() => getStoredInternship() || {}, [])
+  const resolvedProfile = user?.profile || storedProfile || {}
+  const resolvedInternship = storedInternship || {}
+
+  const initialFormData = useMemo(
+    () => buildInitialFormData(resolvedProfile, resolvedInternship, user),
+    [resolvedProfile, resolvedInternship, user]
+  )
+
+  const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState({
     startDate: '',
-    endDate: ''
+    endDate: '',
+    achievements: ''
   })
+
+  useEffect(() => {
+    const nextValues = buildInitialFormData(resolvedProfile, resolvedInternship, user)
+    setFormData((prev) => ({
+      ...prev,
+      ...nextValues,
+    }))
+  }, [resolvedProfile, resolvedInternship, user])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const syncProfile = async () => {
+      if (!user?.role || user.role !== 'student') return
+
+      try {
+        const latestProfile = await getStudentProfile()
+        if (!isMounted) return
+
+        saveProfile({
+          ...latestProfile,
+          firstName: latestProfile?.first_name || '',
+          lastName: latestProfile?.last_name || '',
+          studentId: latestProfile?.index_number || '',
+          department: latestProfile?.department || '',
+          program: latestProfile?.programme || '',
+          level: latestProfile?.level || '',
+          institution: latestProfile?.institution_name || '',
+        })
+
+        const nextValues = buildInitialFormData(latestProfile, resolvedInternship, { ...user, profile: latestProfile })
+        setFormData((prev) => ({
+          ...prev,
+          ...nextValues,
+        }))
+      } catch {
+        // Ignore profile refresh errors and fall back to locally stored data.
+      }
+    }
+
+    syncProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [user?.role, user?.id, resolvedInternship])
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    if (name === 'achievements') {
+      setErrors((prev) => ({ ...prev, achievements: value.trim() ? '' : 'Please add at least one key achievement.' }))
+    }
   }
 
   const setField = (name, value) => {
@@ -73,11 +148,10 @@ export default function ReportUpload() {
               <div key={field.name}>
                 <label className="form-label">{field.label}</label>
                 <input
-                  className="form-input"
+                  className="form-input bg-gray-50"
                   name={field.name}
                   value={formData[field.name]}
-                  onChange={handleChange}
-                  placeholder={field.placeholder}
+                  readOnly
                 />
               </div>
             ))}
@@ -89,60 +163,63 @@ export default function ReportUpload() {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="form-label">Company Name</label>
-              <input className="form-input" placeholder="Company name" />
+              <input className="form-input bg-gray-50" name="companyName" value={formData.companyName} readOnly />
             </div>
             <div>
               <label className="form-label">Department/Unit</label>
-              <input className="form-input" placeholder="Department or unit" />
+              <input className="form-input bg-gray-50" name="departmentUnit" value={formData.departmentUnit} readOnly />
             </div>
             <div>
               <label className="form-label">Industry Supervisor</label>
-              <input className="form-input" placeholder="Supervisor name" />
+              <input className="form-input bg-gray-50" name="supervisorName" value={formData.supervisorName} readOnly />
             </div>
             <div>
               <label className="form-label">Week Number</label>
-              <input className="form-input" placeholder="e.g. Week 1" />
+              <input className="form-input" />
             </div>
-            <div>
-              <label className="form-label">Start Date *</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  className={`form-input pr-10 appearance-none ${errors.startDate ? 'border-red-300' : ''}`}
-                  value={formData.startDate}
-                  onChange={(e) => setField('startDate', e.target.value)}
-                />
-                {!formData.startDate && (
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-400">
-                    Select date
-                  </span>
-                )}
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
-                  <Calendar size={16} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Start Date *</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    className={`form-input pr-10 appearance-none ${errors.startDate ? 'border-red-300' : ''}`}
+                    value={formData.startDate}
+                    onChange={(e) => setField('startDate', e.target.value)}
+                  />
                 </div>
+                {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
               </div>
-              {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
-            </div>
-            <div>
-              <label className="form-label">End Date *</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  className={`form-input pr-10 appearance-none ${errors.endDate ? 'border-red-300' : ''}`}
-                  value={formData.endDate}
-                  onChange={(e) => setField('endDate', e.target.value)}
-                />
-                {!formData.endDate && (
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-400">
-                    Select date
-                  </span>
-                )}
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
-                  <Calendar size={16} />
+              <div>
+                <label className="form-label">End Date *</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    className={`form-input pr-10 appearance-none ${errors.endDate ? 'border-red-300' : ''}`}
+                    value={formData.endDate}
+                    onChange={(e) => setField('endDate', e.target.value)}
+                  />
+                  
+                
                 </div>
+                {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
               </div>
-              {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
             </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-800">Key Achievements</h2>
+          <div>
+            <label className="form-label">What did you achieve this week? *</label>
+            <textarea
+              className="form-input min-h-[100px] resize-none"
+              name="achievements"
+              value={formData.achievements}
+              onChange={handleChange}
+              placeholder="List key achievements, tasks completed, or results delivered."
+            />
+            {errors.achievements && <p className="text-red-500 text-xs mt-1">{errors.achievements}</p>}
           </div>
         </section>
 
@@ -215,7 +292,6 @@ export default function ReportUpload() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button type="button" className="btn-secondary">Save Draft</button>
           <button type="submit" className="btn-primary">Submit Weekly Log</button>
         </div>
       </div>

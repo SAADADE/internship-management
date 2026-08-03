@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered } from 'lucide-react'
+import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered, UploadCloud } from 'lucide-react'
 import { generateStudentReport, saveReportDraft } from '../api'
 
 const sectionConfig = [
@@ -72,6 +72,8 @@ export default function GenerateReport() {
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState('generate')
+  const [selectedFile, setSelectedFile] = useState(null)
 
   const handleChange = (key, value) => {
     setContent((prev) => ({ ...prev, [key]: value }))
@@ -79,6 +81,22 @@ export default function GenerateReport() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (mode === 'upload') {
+      if (!selectedFile) {
+        setSubmitted(false)
+        setMessage('Please choose a final report file before uploading.')
+        return
+      }
+
+      setLoading(true)
+      setMessage(`Uploading ${selectedFile.name} for review...`)
+      await new Promise((resolve) => setTimeout(resolve, 900))
+      setSubmitted(true)
+      setMessage(`Your final report ${selectedFile.name} has been prepared for supervisor review.`)
+      setLoading(false)
+      return
+    }
 
     const emptySections = sectionConfig.filter(({ key }) => stripHtml(content[key]).length === 0)
     if (emptySections.length > 0) {
@@ -137,16 +155,41 @@ export default function GenerateReport() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setMode('generate')} className={`rounded-full px-4 py-2 text-sm font-medium ${mode === 'generate' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+            Generate report
+          </button>
+          <button type="button" onClick={() => setMode('upload')} className={`rounded-full px-4 py-2 text-sm font-medium ${mode === 'upload' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+            Upload final report
+          </button>
+        </div>
+
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {sectionConfig.map((section) => (
-            <RichTextEditor
-              key={section.key}
-              label={section.label}
-              placeholder={section.placeholder}
-              value={content[section.key]}
-              onChange={(value) => handleChange(section.key, value)}
-            />
-          ))}
+          {mode === 'generate' ? (
+            sectionConfig.map((section) => (
+              <RichTextEditor
+                key={section.key}
+                label={section.label}
+                placeholder={section.placeholder}
+                value={content[section.key]}
+                onChange={(value) => handleChange(section.key, value)}
+              />
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <UploadCloud size={16} /> Upload final report
+              </div>
+              <p className="mt-2 text-sm text-gray-500">Choose a PDF or Word document to submit as your final report.</p>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                className="mt-4 block w-full text-sm text-gray-600 file:mr-4 file:rounded-full file:border-0 file:bg-primary-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-primary-700"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+              {selectedFile && <p className="mt-3 text-sm text-emerald-700">Selected file: {selectedFile.name}</p>}
+            </div>
+          )}
 
           {message && (
             <div className={`rounded-2xl border px-4 py-3 text-sm ${submitted ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
@@ -156,7 +199,7 @@ export default function GenerateReport() {
 
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={loading} className="btn-primary disabled:opacity-70">
-              {loading ? 'Generating...' : 'Generate Report'}
+              {loading ? (mode === 'upload' ? 'Uploading...' : 'Generating...') : mode === 'upload' ? 'Upload Report' : 'Generate Report'}
             </button>
             <button type="button" onClick={() => setContent({ abstract: '', introduction: '', conclusion: '' })} className="btn-secondary">Clear</button>
           </div>

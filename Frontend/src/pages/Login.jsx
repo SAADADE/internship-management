@@ -88,16 +88,6 @@ export default function Login() {
             ))}
           </ul>
         </div>
-
-        {/* Demo hint */}
-        <div className="relative bg-primary-900/60 border border-primary-800 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-primary-300 mb-2 uppercase tracking-wider">Demo Credentials</p>
-          <div className="space-y-1 text-xs text-primary-400 font-mono">
-            <p><span className="text-primary-200">Student:</span> student@demo.com / any</p>
-            <p><span className="text-primary-200">Supervisor:</span> supervisor@demo.com / any</p>
-            <p><span className="text-primary-200">Admin:</span> admin@demo.com / any</p>
-          </div>
-        </div>
       </div>
 
       {/* ── RIGHT PANEL ── */}

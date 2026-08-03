@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, GraduationCap, ArrowRight, CheckCircle } from 'lucide-react'
 import { registerUser } from '../api'
+import { saveProfile } from '../utils/storage'
 
 const FEATURES = [
   'Track internship registrations in real-time',
@@ -26,6 +27,8 @@ const initialFormState = {
   password: '',
   confirmPassword: '',
   role: 'student',
+  institution: '',
+  supervisorRole: '',
   remember: false,
   terms: false,
   showPassword: false,
@@ -43,6 +46,10 @@ const emptyErrors = {
   username: '',
   password: '',
   confirmPassword: '',
+  institution: '',
+  supervisorRole: '',
+  role: '',
+  level: '',
   terms: '',
 }
 
@@ -63,9 +70,16 @@ function validateField(name, value, compareValue = '') {
     case 'department':
     case 'program':
     case 'username':
+    case 'role':
       return trimmed ? '' : 'This field is required.'
+    case 'level':
+      return trimmed ? '' : 'Please select your level.'
     case 'studentId':
       return trimmed ? '' : 'Student ID is required.'
+    case 'institution':
+      return trimmed ? '' : 'Institution name is required.'
+    case 'supervisorRole':
+      return trimmed ? '' : 'Please select your role title.'
     case 'email':
       if (!trimmed) return 'Email address is required.'
       return validateEmail(trimmed) ? '' : 'Enter a valid email address.'
@@ -104,6 +118,7 @@ export default function Signup() {
   const [success, setSuccess] = useState('')
 
   const passwordStrength = getPasswordStrength(formData.password)
+  const isSupervisor = formData.role === 'supervisor'
 
   const handleFieldChange = (event) => {
     const { name, type, value, checked } = event.target
@@ -129,15 +144,19 @@ export default function Signup() {
     const fieldErrors = {
       firstName: validateField('firstName', formData.firstName),
       lastName: validateField('lastName', formData.lastName),
-      studentId: validateField('studentId', formData.studentId),
+      studentId: isSupervisor ? '' : validateField('studentId', formData.studentId),
       email: validateField('email', formData.email),
       phone: validateField('phone', formData.phone),
       faculty: validateField('faculty', formData.faculty),
       department: validateField('department', formData.department),
-      program: validateField('program', formData.program),
+      program: isSupervisor ? '' : validateField('program', formData.program),
       username: validateField('username', formData.username),
+      role: validateField('role', formData.role),
+      level: isSupervisor ? '' : validateField('level', formData.level),
       password: validateField('password', formData.password),
       confirmPassword: validateField('confirmPassword', formData.confirmPassword, formData.password),
+      institution: validateField('institution', formData.institution),
+      supervisorRole: isSupervisor ? validateField('supervisorRole', formData.supervisorRole) : '',
       terms: validateField('terms', formData.terms),
     }
 
@@ -162,6 +181,21 @@ export default function Signup() {
         programme: formData.program,
         institution_name: formData.institution || '',
         phone_number: formData.phone,
+        supervisor_role: formData.supervisorRole || '',
+      })
+      saveProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        studentId: formData.studentId,
+        email: formData.email,
+        phone: formData.phone,
+        faculty: formData.faculty,
+        department: formData.department,
+        program: formData.program,
+        level: formData.level,
+        institution: formData.institution,
+        role: formData.role,
+        supervisorRole: formData.supervisorRole,
       })
       setSuccess('Your account was created successfully. You can now sign in.')
       setFormData(initialFormState)
@@ -286,20 +320,22 @@ export default function Signup() {
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="studentId" className="form-label">Student ID</label>
-                  <input
-                    id="studentId"
-                    name="studentId"
-                    type="text"
-                    value={formData.studentId}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, studentId: validateField('studentId', e.target.value) }))}
-                    className="form-input"
-                    placeholder="2024-12345"
-                  />
-                  {errors.studentId && <p className="mt-2 text-sm text-red-600">{errors.studentId}</p>}
-                </div>
+                {!isSupervisor && (
+                  <div>
+                    <label htmlFor="studentId" className="form-label">Student ID</label>
+                    <input
+                      id="studentId"
+                      name="studentId"
+                      type="text"
+                      value={formData.studentId}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, studentId: validateField('studentId', e.target.value) }))}
+                      className="form-input"
+                      placeholder="2024-12345"
+                    />
+                    {errors.studentId && <p className="mt-2 text-sm text-red-600">{errors.studentId}</p>}
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="email" className="form-label">Email Address</label>
@@ -342,11 +378,14 @@ export default function Signup() {
                     name="role"
                     value={formData.role}
                     onChange={handleFieldChange}
+                    onBlur={(e) => setErrors((current) => ({ ...current, role: validateField('role', e.target.value) }))}
                     className="form-input"
                   >
+                    <option value="">Select role</option>
                     <option value="student">Student</option>
                     <option value="supervisor">Supervisor</option>
                   </select>
+                  {errors.role && <p className="mt-2 text-sm text-red-600">{errors.role}</p>}
                 </div>
               </div>
 
@@ -383,35 +422,75 @@ export default function Signup() {
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="program" className="form-label">Program of Study</label>
-                  <input
-                    id="program"
-                    name="program"
-                    type="text"
-                    value={formData.program}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, program: validateField('program', e.target.value) }))}
-                    className="form-input"
-                    placeholder="BSc Computer Engineering"
-                  />
-                  {errors.program && <p className="mt-2 text-sm text-red-600">{errors.program}</p>}
-                </div>
+                {!isSupervisor && (
+                  <div>
+                    <label htmlFor="program" className="form-label">Program of Study</label>
+                    <input
+                      id="program"
+                      name="program"
+                      type="text"
+                      value={formData.program}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, program: validateField('program', e.target.value) }))}
+                      className="form-input"
+                      placeholder="BSc Computer Engineering"
+                    />
+                    {errors.program && <p className="mt-2 text-sm text-red-600">{errors.program}</p>}
+                  </div>
+                )}
 
                 <div>
-                  <label htmlFor="level" className="form-label">Level</label>
-                  <select
-                    id="level"
-                    name="level"
-                    value={formData.level}
+                  <label htmlFor="institution" className="form-label">Institution</label>
+                  <input
+                    id="institution"
+                    name="institution"
+                    type="text"
+                    value={formData.institution}
                     onChange={handleFieldChange}
+                    onBlur={(e) => setErrors((current) => ({ ...current, institution: validateField('institution', e.target.value) }))}
                     className="form-input"
-                  >
-                    {LEVELS.map((level) => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
+                    placeholder="University of Ghana"
+                  />
+                  {errors.institution && <p className="mt-2 text-sm text-red-600">{errors.institution}</p>}
                 </div>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                {!isSupervisor && (
+                  <div>
+                    <label htmlFor="level" className="form-label">Level</label>
+                    <select
+                      id="level"
+                      name="level"
+                      value={formData.level}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, level: validateField('level', e.target.value) }))}
+                      className="form-input"
+                    >
+                      <option value="">Select level</option>
+                      {LEVELS.map((level) => (
+                        <option key={level} value={level}>{level}</option>
+                      ))}
+                    </select>
+                    {errors.level && <p className="mt-2 text-sm text-red-600">{errors.level}</p>}
+                  </div>
+                )}
+
+                {isSupervisor && (
+                  <div>
+                    <label htmlFor="supervisorRole" className="form-label">Supervisor Title</label>
+                    <input
+                      id="supervisorRole"
+                      name="supervisorRole"
+                      type="text"
+                      value={formData.supervisorRole}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, supervisorRole: validateField('supervisorRole', e.target.value) }))}
+                      className="form-input"
+                    />
+                    {errors.supervisorRole && <p className="mt-2 text-sm text-red-600">{errors.supervisorRole}</p>}
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">

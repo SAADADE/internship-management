@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Search, Mail, Briefcase, Calendar, MapPin, MoreVertical } from 'lucide-react'
+import { GraduationCap, Search, Mail, Briefcase, Calendar, MapPin, MoreVertical, Printer } from 'lucide-react'
+import { getStoredAppraisals } from '../utils/storage'
 
 const STUDENTS_DATA = [
   {
@@ -75,6 +76,7 @@ export default function AdminStudents() {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDept, setFilterDept] = useState('all')
+  const appraisals = getStoredAppraisals()
 
   const departments = ['all', ...new Set(STUDENTS_DATA.map(s => s.department))]
 
@@ -104,6 +106,40 @@ export default function AdminStudents() {
 
   const activeCount = STUDENTS_DATA.filter(s => s.status === 'active').length
   const completedCount = STUDENTS_DATA.filter(s => s.status === 'completed').length
+  const summary = useMemo(() => {
+    const byCollege = STUDENTS_DATA.reduce((acc, student) => {
+      const college = student.department || 'Unassigned'
+      acc[college] = (acc[college] || 0) + 1
+      return acc
+    }, {})
+    return Object.entries(byCollege).map(([college, count]) => ({ college, count }))
+  }, [])
+
+  const handlePrint = () => {
+    const grouped = filteredStudents.reduce((acc, student) => {
+      const group = student.department || 'Unassigned'
+      if (!acc[group]) acc[group] = []
+      acc[group].push(student)
+      return acc
+    }, {})
+
+    const rows = Object.entries(grouped).map(([group, students]) => {
+      const innerRows = students.map((student) => {
+        const appraisal = appraisals.find((item) => item.studentId === student.studentId)
+        const score = appraisal?.criteria?.length
+          ? appraisal.criteria.reduce((sum, criterion) => sum + Number(criterion.score || 0), 0)
+          : 'Pending'
+        return `<tr><td style="border:1px solid #ddd;padding:8px">${student.name}</td><td style="border:1px solid #ddd;padding:8px">${student.studentId}</td><td style="border:1px solid #ddd;padding:8px">${student.department}</td><td style="border:1px solid #ddd;padding:8px">${student.company}</td><td style="border:1px solid #ddd;padding:8px">${score === 'Pending' ? 'Pending' : `${score}/45`}</td></tr>`
+      }).join('')
+      return `<tr><td colspan="5" style="border:1px solid #ddd;padding:8px;font-weight:bold;background:#f8fafc">${group}</td></tr>${innerRows}`
+    }).join('')
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+    if (!printWindow) return
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Student Marks Summary</title></head><body style="font-family:Arial,sans-serif;padding:20px"><h2>Student Marks Summary</h2><p>Grouped by college/programme</p><table style="width:100%;border-collapse:collapse"><thead><tr><th style="border:1px solid #ddd;padding:8px">Student</th><th style="border:1px solid #ddd;padding:8px">ID</th><th style="border:1px solid #ddd;padding:8px">College/Programme</th><th style="border:1px solid #ddd;padding:8px">Company</th><th style="border:1px solid #ddd;padding:8px">Marks</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    printWindow.document.close()
+    printWindow.print()
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -131,7 +167,7 @@ export default function AdminStudents() {
 
       {/* Search & Filter Bar */}
       <div className="card p-4 space-y-4">
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <div className="flex-1 relative">
             <Search size={18} className="absolute left-3 top-3 text-gray-400" />
             <input
@@ -142,6 +178,9 @@ export default function AdminStudents() {
               className="input-field pl-10"
             />
           </div>
+          <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+            <Printer size={16} /> Print Summary
+          </button>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -157,6 +196,17 @@ export default function AdminStudents() {
             >
               {dept === 'all' ? 'All Departments' : dept}
             </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+        <p className="text-sm font-semibold text-gray-700">College / Programme summary</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {summary.map((item) => (
+            <span key={item.college} className="rounded-full bg-white px-3 py-1 text-sm text-gray-600 shadow-sm">
+              {item.college}: {item.count}
+            </span>
           ))}
         </div>
       </div>

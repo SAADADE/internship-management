@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react'
 import { loginUser } from '../api'
+import { saveProfile } from '../utils/storage'
 
 const AuthContext = createContext(null)
 
@@ -23,6 +24,20 @@ export function AuthProvider({ children }) {
       avatar: (data.user?.first_name || data.user?.username || 'U').slice(0, 2).toUpperCase(),
       profile,
     }
+
+    if (data.role === 'student') {
+      saveProfile({
+        ...profile,
+        firstName: profile?.first_name || '',
+        lastName: profile?.last_name || '',
+        studentId: profile?.index_number || '',
+        department: profile?.department || '',
+        program: profile?.programme || '',
+        level: profile?.level || '',
+        institution: profile?.institution_name || '',
+      })
+    }
+
     setUser(normalizedUser)
     return normalizedUser
   }

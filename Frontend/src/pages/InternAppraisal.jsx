@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, Save } from 'lucide-react'
+import { getStoredProfile, saveAppraisal } from '../utils/storage'
 
 const criteria = [
   { key: 'punctuality', label: '1. Punctuality at Work' },
@@ -31,6 +32,7 @@ const ratingOptions = [
 export default function InternAppraisal() {
   const navigate = useNavigate()
   const [selectedStudent, setSelectedStudent] = useState(null)
+  const [profile, setProfile] = useState(getStoredProfile())
   const [scores, setScores] = useState({})
   const [generalComments, setGeneralComments] = useState('')
   const [supervisorName, setSupervisorName] = useState('')
@@ -44,6 +46,13 @@ export default function InternAppraisal() {
   const isDrawingRef = useRef(false)
 
   useEffect(() => {
+    const storedProfile = getStoredProfile()
+    if (storedProfile) {
+      setProfile(storedProfile)
+      setSupervisorName(`${storedProfile.firstName || ''} ${storedProfile.lastName || ''}`.trim())
+      setPosition(storedProfile.supervisorRole || 'Supervisor')
+    }
+
     const resizeCanvas = () => {
       const canvas = canvasRef.current
       if (!canvas) return
@@ -154,6 +163,18 @@ export default function InternAppraisal() {
 
     setSubmitting(true)
     await new Promise((resolve) => setTimeout(resolve, 1000))
+    saveAppraisal({
+      id: Date.now(),
+      studentName: selectedStudent?.name,
+      studentId: selectedStudent?.index,
+      department: selectedStudent?.department,
+      supervisorName: supervisorName || profile?.firstName || 'Supervisor',
+      position: position || profile?.supervisorRole || 'Supervisor',
+      submittedOn: new Date().toISOString(),
+      signature: signature || 'Signed',
+      criteria: criteria.map((criterion) => ({ ...criterion, score: scores[criterion.key] })),
+      generalComments,
+    })
     setSubmitting(false)
     setSubmitted(true)
   }
