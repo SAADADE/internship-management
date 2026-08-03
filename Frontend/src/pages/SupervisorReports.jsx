@@ -144,16 +144,6 @@ export default function SupervisorReports() {
           <p className="text-gray-500 mt-1">Review and manage student internship reports</p>
         </div>
         <div className="flex gap-3">
-          <div className="flex gap-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-amber-600">{pendingCount}</p>
-              <p className="text-xs text-gray-600">Pending Review</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-emerald-600">{reviewedCount}</p>
-              <p className="text-xs text-gray-600">Reviewed</p>
-            </div>
-          </div>
         </div>
       </div>
 

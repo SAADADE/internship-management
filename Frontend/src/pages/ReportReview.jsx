@@ -300,21 +300,16 @@ export default function ReportReview() {
                 </span>
                 Grade / Score
               </label>
-              <select
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
                 className="form-input"
                 value={grade}
-                onChange={e => setGrade(e.target.value)}
-              >
-                <option value="">Select grade...</option>
-                <option value="A+">A+ (Exceptional)</option>
-                <option value="A">A (Excellent)</option>
-                <option value="B+">B+ (Very Good)</option>
-                <option value="B">B (Good)</option>
-                <option value="C+">C+ (Above Average)</option>
-                <option value="C">C (Average)</option>
-                <option value="D">D (Below Average)</option>
-                <option value="F">F (Fail)</option>
-              </select>
+                onChange={(e) => setGrade(e.target.value)}
+                placeholder="Enter score"
+              />
             </div>
 
             {/* Feedback comment */}
@@ -377,20 +372,6 @@ e.g. The report demonstrates a good understanding of the week's activities. Howe
               ) : (
                 <span className="flex items-center gap-2 justify-center">
                   <CheckCircle size={16} /> Submit Feedback
-                </span>
-              )}
-            </button>
-            <button
-              onClick={handleSaveDraft}
-              className="btn-secondary w-full py-2.5"
-            >
-              {saved ? (
-                <span className="flex items-center gap-2 justify-center text-emerald-600">
-                  <CheckCircle size={14} /> Draft Saved!
-                </span>
-              ) : (
-                <span className="flex items-center gap-2 justify-center">
-                  <Save size={14} /> Save Draft
                 </span>
               )}
             </button>
