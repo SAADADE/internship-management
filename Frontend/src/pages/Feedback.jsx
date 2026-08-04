@@ -1,70 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageSquare, Star, Calendar, User, CheckCircle, AlertCircle } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
-
-const FEEDBACK_DATA = [
-  {
-    id: 1,
-    reportTitle: 'Week 1 - Onboarding & Setup',
-    reportId: '#R001',
-    supervisor: 'Dr. Theresa',
-    supervisorRole: 'Supervisor',
-    date: '2026-03-15',
-    rating: 5,
-    feedback: 'Excellent report! You demonstrated a clear understanding of the onboarding process and documented your learnings effectively. Keep up the great work!',
-    status: 'read',
-    section: 'Overall Quality'
-  },
-  {
-    id: 2,
-    reportTitle: 'Week 2 - Project Implementation',
-    reportId: '#R002',
-    supervisor: 'Dr. Theresa',
-    supervisorRole: 'Supervisor',
-    date: '2026-03-10',
-    rating: 4,
-    feedback: 'Good progress on the project. Consider adding more technical details about the implementation challenges you faced and how you resolved them.',
-    status: 'unread',
-    section: 'Technical Details'
-  },
-  {
-    id: 3,
-    reportTitle: 'Week 3 - Team Collaboration',
-    reportId: '#R003',
-    supervisor: 'Dr. Theresa',
-    supervisorRole: 'Supervisor',
-    date: '2026-03-05',
-    rating: 4,
-    feedback: 'Nice collaboration documentation. I would like to see more depth in your analysis of team dynamics and individual contributions.',
-    status: 'read',
-    section: 'Collaboration'
-  },
-  {
-    id: 4,
-    reportTitle: 'Week 4 - System Testing',
-    reportId: '#R004',
-    supervisor: 'Dr. Ama Owusu',
-    supervisorRole: 'Supervisor',
-    date: '2026-02-28',
-    rating: 3,
-    feedback: 'Testing documentation is comprehensive, but please focus on documenting edge cases and potential system failures in future reports.',
-    status: 'read',
-    section: 'Testing & QA'
-  }
-]
+import { apiRequest } from '../api'
 
 export default function Feedback() {
-  const { user } = useAuth()
   const navigate = useNavigate()
+  const [feedbackItems, setFeedbackItems] = useState([])
   const [selectedFeedback, setSelectedFeedback] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const unreadCount = FEEDBACK_DATA.filter(f => f.status === 'unread').length
-  
-  const filteredFeedback = filterStatus === 'all' 
-    ? FEEDBACK_DATA 
-    : FEEDBACK_DATA.filter(f => f.status === filterStatus)
+  useEffect(() => {
+    let mounted = true
+
+    apiRequest('/student/feedbacks/')
+      .then(data => {
+        if (mounted) {
+          setFeedbackItems(Array.isArray(data) ? data : [])
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        if (mounted) {
+          setError(err.message || 'Unable to load feedback.')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const unreadCount = feedbackItems.filter(f => f.status === 'unread').length
+
+  const filteredFeedback = filterStatus === 'all'
+    ? feedbackItems
+    : feedbackItems.filter(f => f.status === filterStatus)
 
   const StarRating = ({ rating, size = 16 }) => (
     <div className="flex gap-1">
@@ -103,7 +76,7 @@ export default function Feedback() {
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
-          All ({FEEDBACK_DATA.length})
+          All ({feedbackItems.length})
         </button>
         <button
           onClick={() => setFilterStatus('unread')}
@@ -121,13 +94,15 @@ export default function Feedback() {
         
         {/* Feedback List */}
         <div className="lg:col-span-2 space-y-3">
-          {filteredFeedback.length === 0 ? (
+          {loading && <div className="card p-8 text-center text-gray-500">Loading feedback…</div>}
+          {error && !loading && <div className="card p-8 text-center text-red-600">{error}</div>}
+          {!loading && !error && filteredFeedback.length === 0 ? (
             <div className="card p-8 text-center">
               <MessageSquare size={32} className="mx-auto mb-3 text-gray-300" />
               <p className="text-gray-500">No feedback available yet</p>
             </div>
           ) : (
-            filteredFeedback.map(item => (
+            !loading && !error && filteredFeedback.map(item => (
               <button
                 key={item.id}
                 onClick={() => setSelectedFeedback(item)}

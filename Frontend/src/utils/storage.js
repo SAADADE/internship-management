@@ -27,6 +27,12 @@ export function saveProfile(profile) {
   storage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile))
 }
 
+export function clearProfile() {
+  const storage = getStorage()
+  if (!storage) return
+  storage.removeItem(PROFILE_STORAGE_KEY)
+}
+
 export function getStoredProfile() {
   const storage = getStorage()
   if (!storage) return null

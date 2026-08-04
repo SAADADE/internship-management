@@ -1,37 +1,112 @@
-import { useState } from 'react'
-import { Eye, Download, Search, Filter, FileText, ChevronDown } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-
-const REPORTS = [
-  { id: 1, title: 'Industrial Training Report — Week 1', type: 'Weekly Log Sheet',    date: '2024-02-05', status: 'Reviewed',         grade: 'A',  feedback: 'Excellent work. Very detailed logs.' },
-  { id: 2, title: 'Vacation Training Report — Week 2',   type: 'Weekly Log Sheet',     date: '2024-02-19', status: 'Reviewed',         grade: 'B+', feedback: 'Good progress. Improve technical depth.' },
-  { id: 3, title: 'Industrial Training Report — Week 3', type: 'Weekly Log Sheet',    date: '2024-03-04', status: 'Needs Revision',   grade: '-',  feedback: 'Revisions needed on section 3.' },
-  { id: 4, title: 'Industrial Training Report — Week 4', type: 'Weekly Log Sheet',    date: '2024-03-11', status: 'Pending',          grade: '-',  feedback: '' },
-]
+import { useEffect, useState } from 'react'
+import { Eye, Download, Search, FileText } from 'lucide-react'
+import { getStudentReports, generateStudentReport } from '../api'
 
 const STATUS_BADGE = {
-  'Reviewed':       'badge-success',
-  'Pending':        'badge-warning',
+  'Reviewed': 'badge-success',
+  'Pending': 'badge-warning',
+  'Submitted': 'badge-info',
+  'Draft': 'badge-warning',
   'Needs Revision': 'badge-danger',
 }
 
 const STATUS_DOT = {
-  'Reviewed':       'bg-emerald-500',
-  'Pending':        'bg-amber-400',
+  'Reviewed': 'bg-emerald-500',
+  'Pending': 'bg-amber-400',
+  'Submitted': 'bg-sky-500',
+  'Draft': 'bg-gray-400',
   'Needs Revision': 'bg-red-500',
 }
 
+const normalizeStatus = value => {
+  if (!value) return 'Pending'
+  const key = String(value).trim()
+  if (key === 'Reviewed' || key === 'reviewed') return 'Reviewed'
+  if (key === 'Pending' || key === 'pending') return 'Pending'
+  if (key === 'Submitted' || key === 'submitted') return 'Submitted'
+  if (key === 'Draft' || key === 'draft') return 'Draft'
+  if (key === 'Needs Revision' || key === 'needs_revision') return 'Needs Revision'
+  return key
+}
+
+const formatDate = value => {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return value
+  }
+}
+
 export default function ViewReports() {
+  const [reports, setReports] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [selected, setSelected] = useState(null)
-  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [downloadingId, setDownloadingId] = useState(null)
 
-  const filtered = REPORTS.filter(r => {
-    const matchSearch = r.title.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'All' || r.status === statusFilter
+  useEffect(() => {
+    let mounted = true
+
+    getStudentReports()
+      .then(data => {
+        if (mounted) {
+          setReports(Array.isArray(data) ? data : [])
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        if (mounted) {
+          setError(err.message || 'Unable to load reports.')
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const filtered = reports.filter(r => {
+    const searchText = `${r.title || ''} ${r.company_name || ''}`.toLowerCase()
+    const matchSearch = searchText.includes(search.toLowerCase())
+    const matchStatus = statusFilter === 'All' || normalizeStatus(r.status) === statusFilter
     return matchSearch && matchStatus
   })
+
+  const handleDownload = async (item, event) => {
+    event.stopPropagation()
+    if (item.source !== 'report') {
+      setError('Only generated reports can be downloaded from this view.')
+      return
+    }
+
+    setDownloadingId(item.id)
+    setError('')
+
+    try {
+      const blob = await generateStudentReport()
+      const safeName = (item.title || 'internship_report')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'internship_report'
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${safeName}.docx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      setSelected(item)
+    } catch (err) {
+      setError(err.message || 'Unable to download report.')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -39,9 +114,9 @@ export default function ViewReports() {
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Submitted', value: REPORTS.length, color: 'bg-primary-50 text-primary-800' },
-          { label: 'Reviewed',        value: REPORTS.filter(r => r.status === 'Reviewed').length, color: 'bg-emerald-50 text-emerald-800' },
-          { label: 'Pending',         value: REPORTS.filter(r => r.status === 'Pending').length,  color: 'bg-amber-50 text-amber-800' },
+          { label: 'Total Submitted', value: reports.length, color: 'bg-primary-50 text-primary-800' },
+          { label: 'Reviewed', value: reports.filter(r => normalizeStatus(r.status) === 'Reviewed').length, color: 'bg-emerald-50 text-emerald-800' },
+          { label: 'Pending', value: reports.filter(r => ['Pending', 'Submitted', 'Draft'].includes(normalizeStatus(r.status))).length, color: 'bg-amber-50 text-amber-800' },
         ].map(s => (
           <div key={s.label} className={`card p-4 flex items-center justify-between ${s.color}`}>
             <span className="text-sm font-medium font-body">{s.label}</span>
@@ -79,12 +154,20 @@ export default function ViewReports() {
           </div>
         </div>
 
-        {/* Table */}
+        {loading && (
+          <div className="p-5 text-sm text-gray-500">Loading reports…</div>
+        )}
+
+        {error && !loading && (
+          <div className="p-5 text-sm text-red-600">{error}</div>
+        )}
+
+        {!loading && !error && (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50/70 border-b border-gray-100">
               <tr>
-                {['Report Title', 'Type', 'Date Submitted', 'Status', 'Grade', 'Actions'].map(h => (
+                {['Entry', 'Type', 'Company', 'Date Submitted', 'Status', 'Grade', 'Actions'].map(h => (
                   <th key={h} className="table-header text-left">{h}</th>
                 ))}
               </tr>
@@ -92,7 +175,7 @@ export default function ViewReports() {
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-14 text-gray-400 font-body text-sm">
+                  <td colSpan={7} className="text-center py-14 text-gray-400 font-body text-sm">
                     <FileText size={32} className="mx-auto mb-2 opacity-30" />
                     No reports found
                   </td>
@@ -114,13 +197,12 @@ export default function ViewReports() {
                       </div>
                     </td>
                     <td className="table-cell text-gray-500">{r.type}</td>
-                    <td className="table-cell text-gray-500">
-                      {new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </td>
+                    <td className="table-cell text-gray-500">{r.company_name || '—'}</td>
+                    <td className="table-cell text-gray-500">{formatDate(r.date)}</td>
                     <td className="table-cell">
-                      <span className={`${STATUS_BADGE[r.status]} flex items-center gap-1.5 w-fit`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status]}`} />
-                        {r.status}
+                      <span className={`${STATUS_BADGE[normalizeStatus(r.status)] || 'badge-warning'} flex items-center gap-1.5 w-fit`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[normalizeStatus(r.status)] || 'bg-amber-400'}`} />
+                        {normalizeStatus(r.status)}
                       </span>
                     </td>
                     <td className="table-cell">
@@ -138,11 +220,12 @@ export default function ViewReports() {
                           <Eye size={13} /> View
                         </button>
                         <button
-                          onClick={e => e.stopPropagation()}
+                          onClick={e => handleDownload(r, e)}
+                          disabled={r.source !== 'report' || downloadingId === r.id}
                           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700
-                                     font-medium transition-colors px-2.5 py-1.5 rounded-lg hover:bg-gray-100"
+                                     font-medium transition-colors px-2.5 py-1.5 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <Download size={13} /> Download
+                          <Download size={13} /> {downloadingId === r.id ? 'Downloading…' : 'Download'}
                         </button>
                       </div>
                     </td>
@@ -152,6 +235,7 @@ export default function ViewReports() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Feedback panel */}
@@ -159,15 +243,23 @@ export default function ViewReports() {
         <div className="card p-6 border-l-4 border-primary-500 animate-slide-up">
           <h3 className="font-heading font-semibold text-gray-800 mb-1">{selected.title}</h3>
           <div className="flex gap-3 flex-wrap mb-4">
-            <span className={STATUS_BADGE[selected.status]}>{selected.status}</span>
+            <span className={STATUS_BADGE[normalizeStatus(selected.status)] || 'badge-warning'}>{normalizeStatus(selected.status)}</span>
             {selected.grade !== '-' && (
               <span className="badge-success">Grade: {selected.grade}</span>
             )}
           </div>
+          {selected.company_name && (
+            <p className="text-sm text-gray-600 mb-3">Company: {selected.company_name}</p>
+          )}
           {selected.feedback ? (
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Supervisor Feedback</p>
               <p className="text-sm text-gray-700 font-body">{selected.feedback}</p>
+            </div>
+          ) : selected.details ? (
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Submission Details</p>
+              <p className="text-sm text-gray-700 font-body">{selected.details}</p>
             </div>
           ) : (
             <p className="text-sm text-gray-400 italic font-body">No feedback yet. Awaiting supervisor review.</p>

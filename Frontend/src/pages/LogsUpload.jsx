@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar } from 'lucide-react'
-import { getStudentProfile, updateStudentProfile } from '../api'
+import { createStudentLog, getStudentInternships, getStudentProfile, updateStudentProfile } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { getStoredInternship, getStoredProfile, saveProfile } from '../utils/storage'
 
@@ -41,6 +41,8 @@ function buildInitialFormData(profile = {}, internship = {}, user = null) {
     programme: profile?.programme || profile?.program || '',
     level: profile?.level || '',
     institution: profile?.institution_name || profile?.institution || '',
+    weekNumber: '',
+    internshipId: internship?.internship_id || internship?.id || '',
     mondayTasks: '',
     mondaySkills: '',
     mondayChallenges: '',
@@ -88,14 +90,21 @@ export default function ReportUpload() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSavingLevel, setIsSavingLevel] = useState(false)
   const [levelMessage, setLevelMessage] = useState('')
+  const [internships, setInternships] = useState([])
+  const [selectedInternshipId, setSelectedInternshipId] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const selectedInternship = internships.find((entry) => entry.internship_id === selectedInternshipId) || internships[0] || storedInternship || {}
+  const activeInternship = selectedInternship || resolvedInternship || {}
 
   useEffect(() => {
-    const nextValues = buildInitialFormData(resolvedProfile, resolvedInternship, user)
+    const nextValues = buildInitialFormData(resolvedProfile, activeInternship, user)
     setFormData((prev) => ({
       ...prev,
       ...nextValues,
     }))
-  }, [resolvedProfile, resolvedInternship, user])
+  }, [resolvedProfile, activeInternship, user])
 
   useEffect(() => {
     let isMounted = true
@@ -104,8 +113,17 @@ export default function ReportUpload() {
       if (!user?.role || user.role !== 'student') return
 
       try {
-        const latestProfile = await getStudentProfile()
+        const [latestProfile, latestInternships] = await Promise.all([
+          getStudentProfile(),
+          getStudentInternships(),
+        ])
         if (!isMounted) return
+
+        const normalizedInternships = Array.isArray(latestInternships)
+          ? latestInternships
+          : latestInternships
+            ? [latestInternships]
+            : []
 
         saveProfile({
           ...latestProfile,
@@ -118,7 +136,13 @@ export default function ReportUpload() {
           institution: latestProfile?.institution_name || '',
         })
 
-        const nextValues = buildInitialFormData(latestProfile, resolvedInternship, { ...user, profile: latestProfile })
+        setInternships(normalizedInternships)
+        const fallbackInternship = normalizedInternships[0] || storedInternship || {}
+        setSelectedInternshipId((current) => current && normalizedInternships.some((entry) => entry.internship_id === current)
+          ? current
+          : fallbackInternship?.internship_id || '')
+
+        const nextValues = buildInitialFormData(latestProfile, fallbackInternship, { ...user, profile: latestProfile })
         setFormData((prev) => ({
           ...prev,
           ...nextValues,
@@ -133,7 +157,7 @@ export default function ReportUpload() {
     return () => {
       isMounted = false
     }
-  }, [user?.role, user?.id, resolvedInternship])
+  }, [user?.role, user?.id, storedInternship])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -181,6 +205,17 @@ export default function ReportUpload() {
     }
   }
 
+  const handleInternshipSwitch = (internship) => {
+    const nextId = internship?.internship_id || ''
+    setSelectedInternshipId(nextId)
+    setFormData((prev) => ({
+      ...prev,
+      ...buildInitialFormData(resolvedProfile, internship, user),
+    }))
+    setErrors(buildInitialErrors())
+    setSubmitError('')
+  }
+
   const validateForm = () => {
     const nextErrors = buildInitialErrors()
 
@@ -220,7 +255,7 @@ export default function ReportUpload() {
     return nextErrors
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     const nextErrors = validateForm()
@@ -231,13 +266,62 @@ export default function ReportUpload() {
       return
     }
 
-    setIsSubmitted(true)
+    setIsSubmitting(true)
+    setSubmitError('')
+
+    try {
+      const payload = {
+        studentName: formData.studentName,
+        studentId: formData.studentId,
+        department: formData.department,
+        programme: formData.programme,
+        level: formData.level,
+        institution: formData.institution,
+        companyName: formData.companyName,
+        departmentUnit: formData.departmentUnit,
+        supervisorName: formData.supervisorName,
+        weekNumber: formData.weekNumber,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        achievements: formData.achievements,
+        mondayTasks: formData.mondayTasks,
+        mondaySkills: formData.mondaySkills,
+        mondayChallenges: formData.mondayChallenges,
+        mondaySolutions: formData.mondaySolutions,
+        tuesdayTasks: formData.tuesdayTasks,
+        tuesdaySkills: formData.tuesdaySkills,
+        tuesdayChallenges: formData.tuesdayChallenges,
+        tuesdaySolutions: formData.tuesdaySolutions,
+        wednesdayTasks: formData.wednesdayTasks,
+        wednesdaySkills: formData.wednesdaySkills,
+        wednesdayChallenges: formData.wednesdayChallenges,
+        wednesdaySolutions: formData.wednesdaySolutions,
+        thursdayTasks: formData.thursdayTasks,
+        thursdaySkills: formData.thursdaySkills,
+        thursdayChallenges: formData.thursdayChallenges,
+        thursdaySolutions: formData.thursdaySolutions,
+        fridayTasks: formData.fridayTasks,
+        fridaySkills: formData.fridaySkills,
+        fridayChallenges: formData.fridayChallenges,
+        fridaySolutions: formData.fridaySolutions,
+        confirmation: formData.confirmation,
+        internshipId: formData.internshipId || selectedInternship?.internship_id || '',
+      }
+
+      await createStudentLog(payload)
+      setIsSubmitted(true)
+    } catch (error) {
+      setSubmitError(error.message || 'Unable to submit your weekly log right now.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSubmitAnother = () => {
     setIsSubmitted(false)
-    setFormData(buildInitialFormData(resolvedProfile, resolvedInternship, user))
+    setFormData(buildInitialFormData(resolvedProfile, activeInternship, user))
     setErrors(buildInitialErrors())
+    setSubmitError('')
   }
 
   if (isSubmitted) {
@@ -307,7 +391,26 @@ export default function ReportUpload() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-800">Internship Information</h2>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">Internship Information</h2>
+            {internships.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {internships.map((internship) => {
+                  const isActive = selectedInternshipId === internship.internship_id
+                  return (
+                    <button
+                      key={internship.internship_id}
+                      type="button"
+                      onClick={() => handleInternshipSwitch(internship)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${isActive ? 'bg-primary-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                      {internship.company_name || 'Internship'}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="form-label">Company Name</label>
@@ -323,7 +426,13 @@ export default function ReportUpload() {
             </div>
             <div>
               <label className="form-label">Week Number</label>
-              <input className="form-input" />
+              <input
+                className="form-input"
+                name="weekNumber"
+                value={formData.weekNumber}
+                onChange={handleChange}
+                placeholder="e.g. 3"
+              />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -455,12 +564,16 @@ export default function ReportUpload() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!formData.confirmation}
+            disabled={!formData.confirmation || isSubmitting}
             className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Submit Weekly Log
+            {isSubmitting ? 'Submitting...' : 'Submit Weekly Log'}
           </button>
         </div>
+        {submitError && <p className="text-sm text-red-500">{submitError}</p>}
+        {isSubmitted && (
+          <p className="text-sm text-emerald-600">Your weekly log was submitted successfully.</p>
+        )}
       </div>
     </div>
   )

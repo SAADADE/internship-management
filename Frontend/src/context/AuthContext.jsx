@@ -1,16 +1,52 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { loginUser } from '../api'
-import { saveProfile } from '../utils/storage'
+import { saveProfile, getStoredProfile, clearProfile } from '../utils/storage'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => {
+    if (typeof window === 'undefined') return null
+
+    try {
+      const storedUser = window.localStorage.getItem('academicIQ_user')
+      return storedUser ? JSON.parse(storedUser) : null
+    } catch {
+      return null
+    }
+  })
   const [notifications, setNotifications] = useState([
     { id: 1, text: 'Your report has been reviewed', time: '2 min ago', read: false },
     { id: 2, text: 'Submission deadline approaching — 3 days left', time: '1 hr ago', read: false },
     { id: 3, text: 'New feedback received from Dr Theresa', time: '3 hrs ago', read: true },
   ])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (user) {
+      window.localStorage.setItem('academicIQ_user', JSON.stringify(user))
+    } else {
+      window.localStorage.removeItem('academicIQ_user')
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const storedProfile = getStoredProfile()
+    if (!user && storedProfile) {
+      const normalizedUser = {
+        id: storedProfile?.id,
+        name: `${storedProfile?.firstName || storedProfile?.first_name || ''} ${storedProfile?.lastName || storedProfile?.last_name || ''}`.trim() || storedProfile?.email || 'User',
+        email: storedProfile?.email || storedProfile?.sch_email || '',
+        role: storedProfile?.role || 'student',
+        avatar: (storedProfile?.firstName || storedProfile?.first_name || storedProfile?.email || 'U').slice(0, 2).toUpperCase(),
+        profile: storedProfile,
+      }
+      setUser(normalizedUser)
+    }
+  }, [user])
 
   const login = async (username, password) => {
     const data = await loginUser({ username, password })
@@ -35,6 +71,7 @@ export function AuthProvider({ children }) {
         program: profile?.programme || '',
         level: profile?.level || '',
         institution: profile?.institution_name || '',
+        role: data.role,
       })
     }
 
@@ -42,7 +79,13 @@ export function AuthProvider({ children }) {
     return normalizedUser
   }
 
-  const logout = () => setUser(null)
+  const logout = () => {
+    setUser(null)
+    clearProfile()
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('academicIQ_user')
+    }
+  }
 
   const markAllRead = () =>
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))

@@ -84,6 +84,14 @@ export function createStudentInternship(payload) {
   return apiRequest('/student/internships/', { method: 'POST', body: payload })
 }
 
+export function getStudentDashboardSummary() {
+  return apiRequest('/student/dashboard/')
+}
+
+export function getStudentReports() {
+  return apiRequest('/student/reports/')
+}
+
 export function getStudentLogs() {
   return apiRequest('/student/logs/')
 }

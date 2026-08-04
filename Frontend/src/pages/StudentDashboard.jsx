@@ -1,19 +1,13 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import StatsCard from '../components/StatsCard'
+import { getStudentDashboardSummary } from '../api'
 import {
   Briefcase, FileText, Clock, MessageSquare,
   Upload, PlusCircle, CheckCircle, AlertCircle,
   ArrowRight, TrendingUp
 } from 'lucide-react'
-
-const ACTIVITY = [
-  { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50', label: 'Report #3 reviewed by supervisor', time: '2 hours ago' },
-  { icon: Upload,      color: 'text-sky-500',     bg: 'bg-sky-50',     label: 'Weekly Log Sheet uploaded', time: 'Yesterday, 4:30 PM' },
-  { icon: MessageSquare, color: 'text-primary-500', bg: 'bg-primary-50', label: 'Feedback received on Log sheet - Week 3', time: '2 days ago' },
-  { icon: AlertCircle, color: 'text-amber-500',   bg: 'bg-amber-50',   label: 'Deadline approaching — Final Report due in 3 days', time: '3 days ago' },
-  { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50', label: 'Internship registration successful', time: '1 week ago' },
-]
 
 const QUICK_ACTIONS = [
   { icon: PlusCircle, label: 'Register Internship', sub: 'Submit your placement details', to: '/internship/register', color: 'bg-primary-700 hover:bg-primary-800 text-white' },
@@ -33,6 +27,89 @@ export default function StudentDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const firstName = user?.name?.split(' ')[0] || 'Student'
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+    const loadSummary = async () => {
+      try {
+        const data = await getStudentDashboardSummary()
+        if (isMounted) {
+          setSummary(data)
+        }
+      } catch (error) {
+        console.error('Unable to load dashboard summary', error)
+        if (isMounted) {
+          setSummary({ stats: {}, activity: [], deadlines: [] })
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadSummary()
+    return () => { isMounted = false }
+  }, [])
+
+  const stats = useMemo(() => [
+    {
+      icon: Briefcase,
+      label: 'Internship Status',
+      value: summary?.stats?.internship_status || 'Pending',
+      color: 'green',
+      trendLabel: summary?.student?.department ? `Registered — ${summary.student.department}` : 'Registered',
+    },
+    {
+      icon: FileText,
+      label: 'Reports Submitted',
+      value: summary?.stats?.reports_submitted?.toString() || '0',
+      color: 'blue',
+      trendLabel: 'Database-backed',
+    },
+    {
+      icon: Clock,
+      label: 'Pending Reviews',
+      value: summary?.stats?.pending_reviews?.toString() || '0',
+      color: 'amber',
+      trendLabel: 'Awaiting supervisor',
+    },
+    {
+      icon: MessageSquare,
+      label: 'Feedback Received',
+      value: summary?.stats?.feedback_received?.toString() || '0',
+      color: 'purple',
+      trendLabel: 'From supervisor',
+    },
+  ], [summary])
+
+  const activity = useMemo(() => {
+    if (!summary?.activity?.length) {
+      return [{ icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50', label: 'No recent activity yet', time: 'Start by adding a log or internship entry' }]
+    }
+
+    return summary.activity.map(item => ({
+      icon: item.icon === 'alert' ? AlertCircle : item.icon === 'upload' ? Upload : CheckCircle,
+      color: item.icon === 'alert' ? 'text-amber-500' : item.icon === 'upload' ? 'text-sky-500' : 'text-emerald-500',
+      bg: item.icon === 'alert' ? 'bg-amber-50' : item.icon === 'upload' ? 'bg-sky-50' : 'bg-emerald-50',
+      label: item.label,
+      time: item.time,
+    }))
+  }, [summary])
+
+  const deadlines = useMemo(() => {
+    if (!summary?.deadlines?.length) {
+      return [{ label: 'No upcoming deadlines', due: 'Add logs to generate a timeline', badge: 'badge-info' }]
+    }
+
+    return summary.deadlines.map(item => ({
+      label: item.label,
+      due: item.due,
+      badge: item.badge || 'badge-info',
+    }))
+  }, [summary])
 
   return (
     <div className="space-y-7 animate-fade-in">
@@ -49,17 +126,16 @@ export default function StudentDashboard() {
             {getGreeting()}, {firstName} 👋
           </h2>
           <p className="text-primary-200 text-sm mt-2 font-body">
-            You have <span className="text-white font-semibold">2 pending reports</span> and a deadline in <span className="text-amber-300 font-semibold">3 days</span>.
+            You have <span className="text-white font-semibold">{loading ? 'loading your summary' : `${summary?.stats?.pending_reviews || 0} pending review${(summary?.stats?.pending_reviews || 0) === 1 ? '' : 's'}`}</span> and a deadline in <span className="text-amber-300 font-semibold">3 days</span>.
           </p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard icon={Briefcase}     label="Internship Status" value="Active"  color="green"  trendLabel="Registered — Semester 2" />
-        <StatsCard icon={FileText}      label="Reports Submitted" value="3"       color="blue"   trend={12} trendLabel="vs last semester" />
-        <StatsCard icon={Clock}         label="Pending Reviews"   value="2"       color="amber"  trendLabel="Awaiting supervisor" />
-        <StatsCard icon={MessageSquare} label="Feedback Received" value="5"       color="purple" trendLabel="3 actionable items" />
+        {stats.map((item, index) => (
+          <StatsCard key={item.label} icon={item.icon} label={item.label} value={item.value} color={item.color} trendLabel={item.trendLabel} />
+        ))}
       </div>
 
       {/* Content grid */}
@@ -72,14 +148,13 @@ export default function StudentDashboard() {
             <span className="badge-success"><TrendingUp size={11} /> Up to date</span>
           </div>
           <div className="space-y-1">
-            {ACTIVITY.map((item, i) => (
-              <div key={i} className="flex gap-4 py-3 group">
-                {/* Timeline line */}
+            {activity.map((item, i) => (
+              <div key={`${item.label}-${i}`} className="flex gap-4 py-3 group">
                 <div className="flex flex-col items-center">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bg}`}>
                     <item.icon size={15} className={item.color} />
                   </div>
-                  {i < ACTIVITY.length - 1 && <div className="w-px h-full bg-gray-100 mt-1" />}
+                  {i < activity.length - 1 && <div className="w-px h-full bg-gray-100 mt-1" />}
                 </div>
                 <div className="pb-3 min-w-0">
                   <p className="text-sm text-gray-700 font-body leading-snug">{item.label}</p>
@@ -120,11 +195,7 @@ export default function StudentDashboard() {
               <h4 className="font-heading font-semibold text-sm text-gray-800">Upcoming Deadlines</h4>
             </div>
             <div className="space-y-2.5">
-              {[
-                { label: 'Final Report Submission', due: '3 days', badge: 'badge-warning' },
-                { label: 'Log Sheet — Week 10', due: '5 days', badge: 'badge-info' },
-                { label: 'Final Report submitted', due: '3 weeks', badge: 'badge-success' },
-              ].map(d => (
+              {deadlines.map(d => (
                 <div key={d.label} className="flex items-center justify-between">
                   <p className="text-sm text-gray-600 font-body">{d.label}</p>
                   <span className={d.badge}>{d.due}</span>

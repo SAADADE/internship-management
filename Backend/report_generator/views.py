@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.auth import authenticate, get_user_model, login
 from django.db.models import Q
+from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.parsers import JSONParser, MultiPartParser
@@ -26,7 +27,7 @@ from rest_framework.views import APIView
 from .docx_builder import build_docx
 from .file_extractor import extract_text_from_file
 from .llm_service import generate_report_structure
-from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, StudentProfile, SupervisorProfile
+from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, SupervisorProfile
 from .serializers import (
     AuthLoginSerializer,
     BulkStatusUpdateSerializer,
@@ -35,6 +36,9 @@ from .serializers import (
     InternshipSerializer,
     PasswordChangeSerializer,
     ReportRequestSerializer,
+    ReportSerializer,
+    StudentActivityItemSerializer,
+    StudentFeedbackSerializer,
     StudentProfileSerializer,
     SupervisorLogUpdateSerializer,
     UserRegistrationSerializer,
@@ -257,6 +261,133 @@ class StudentProfileView(APIView):
         return Response(serializer.data)
 
 
+class StudentDashboardView(APIView):
+    permission_classes = [IsStudentUser]
+
+    def get(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        internships = Internship.objects.filter(student=profile).order_by("-created_at")
+        latest_internship = internships.first()
+        logs = DailyLog.objects.filter(student=profile).order_by("-log_date", "-created_at")
+        reports = Report.objects.filter(student=profile).order_by("-created_at")
+        feedback_count = LogFeedback.objects.filter(log__student=profile).count()
+        pending_reviews = logs.filter(status__in=["draft", "submitted", "needs_revision"]).count()
+        reviewed_logs = logs.filter(status="reviewed")
+
+        activity_items = []
+        for log in logs[:5]:
+            if log.status == "reviewed":
+                activity_items.append({
+                    "icon": "check",
+                    "label": f"Log sheet {log.week_number or 'week'} reviewed by supervisor",
+                    "time": log.updated_at.strftime("%Y-%m-%d %H:%M"),
+                })
+            elif log.status == "needs_revision":
+                activity_items.append({
+                    "icon": "alert",
+                    "label": f"Log sheet {log.week_number or 'week'} needs revision",
+                    "time": log.updated_at.strftime("%Y-%m-%d %H:%M"),
+                })
+            else:
+                activity_items.append({
+                    "icon": "upload",
+                    "label": f"Weekly log sheet {log.week_number or 'week'} saved",
+                    "time": log.updated_at.strftime("%Y-%m-%d %H:%M"),
+                })
+
+        if not activity_items and latest_internship:
+            activity_items.append({
+                "icon": "check",
+                "label": f"Internship registered at {latest_internship.company_name}",
+                "time": latest_internship.created_at.strftime("%Y-%m-%d %H:%M"),
+            })
+
+        deadlines = []
+        if latest_internship:
+            deadlines.append({
+                "label": f"Final report for {latest_internship.company_name}",
+                "due": "3 days",
+                "badge": "badge-warning",
+            })
+        if reviewed_logs.exists():
+            deadlines.append({
+                "label": "Reviewed logs ready for final report",
+                "due": "1 day",
+                "badge": "badge-info",
+            })
+        if reports.exists():
+            deadlines.append({
+                "label": "Latest report is ready",
+                "due": "3 weeks",
+                "badge": "badge-success",
+            })
+
+        status_label = latest_internship.status.title() if latest_internship else "Pending"
+        stats = {
+            "internship_status": status_label,
+            "reports_submitted": reports.count(),
+            "pending_reviews": pending_reviews,
+            "feedback_received": feedback_count,
+        }
+
+        return Response({
+            "student": {
+                "name": f"{profile.first_name} {profile.last_name}".strip() or profile.sch_email,
+                "department": profile.department,
+                "programme": profile.programme,
+                "level": profile.level,
+            },
+            "stats": stats,
+            "activity": activity_items,
+            "deadlines": deadlines,
+        })
+
+
+class StudentReportsView(APIView):
+    permission_classes = [IsStudentUser]
+
+    def get(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        logs = DailyLog.objects.filter(student=profile).order_by("-log_date", "-created_at")
+        reports = Report.objects.filter(student=profile).order_by("-created_at")
+
+        items = []
+        for log in logs:
+            items.append({
+                "id": log.log_id,
+                "source": "log",
+                "title": f"Weekly Log - Week {log.week_number or 1}",
+                "type": "Weekly Log",
+                "date": log.log_date.isoformat() if log.log_date else log.created_at.date().isoformat(),
+                "status": {
+                    "submitted": "Submitted",
+                    "reviewed": "Reviewed",
+                    "needs_revision": "Needs Revision",
+                    "draft": "Draft",
+                }.get(log.status, log.status.title()),
+                "grade": "-",
+                "feedback": "",
+                "company_name": log.company_name or (log.internship.company_name if log.internship else ""),
+                "week_number": log.week_number,
+                "details": log.log_text or log.achievements or "",
+                "created_at": log.created_at,
+            })
+
+        for report in reports:
+            payload = ReportSerializer(report).data
+            payload.update({
+                "source": "report",
+                "type": "Report",
+                "company_name": report.student.company or "",
+                "details": report.supervisor_feedback or "",
+                "created_at": report.created_at,
+            })
+            items.append(payload)
+
+        items.sort(key=lambda item: item["created_at"], reverse=True)
+        return Response(StudentActivityItemSerializer(items, many=True).data)
+
+
 class StudentInternshipView(APIView):
     permission_classes = [IsStudentUser]
 
@@ -267,7 +398,14 @@ class StudentInternshipView(APIView):
 
     def post(self, request):
         profile = StudentProfile.objects.get(user=request.user)
-        serializer = InternshipSerializer(data=request.data)
+        payload = request.data.copy()
+
+        if payload.get("start_date") and not payload.get("internship_duration"):
+            payload["internship_duration"] = payload["start_date"]
+        if payload.get("end_date") and payload.get("internship_duration") and " to " not in payload["internship_duration"]:
+            payload["internship_duration"] = f"{payload['internship_duration']} to {payload['end_date']}"
+
+        serializer = InternshipSerializer(data=payload)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save(student=profile)
@@ -284,11 +422,59 @@ class StudentLogView(APIView):
 
     def post(self, request):
         profile = StudentProfile.objects.get(user=request.user)
-        serializer = DailyLogSerializer(data=request.data)
+        payload = request.data.copy()
+
+        if isinstance(payload, dict):
+            daily_entries = []
+            for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
+                day_payload = {
+                    "day": day.title(),
+                    "tasks": payload.get(f"{day}Tasks", ""),
+                    "skills": payload.get(f"{day}Skills", ""),
+                    "challenges": payload.get(f"{day}Challenges", ""),
+                    "solutions": payload.get(f"{day}Solutions", ""),
+                }
+                daily_entries.append(day_payload)
+
+            payload["daily_entries"] = daily_entries
+            payload["student_name"] = payload.get("studentName", "")
+            payload["student_index_number"] = payload.get("studentId", "")
+            payload["department"] = payload.get("department", "")
+            payload["programme"] = payload.get("programme", "")
+            payload["level"] = payload.get("level", "")
+            payload["institution"] = payload.get("institution", "")
+            payload["company_name"] = payload.get("companyName", "")
+            payload["department_unit"] = payload.get("departmentUnit", "")
+            payload["supervisor_name"] = payload.get("supervisorName", "")
+            payload["achievements"] = payload.get("achievements", "")
+            payload["log_text"] = payload.get("achievements", "")
+            payload["status"] = "submitted"
+            payload["week_number"] = payload.get("weekNumber") or payload.get("week_number")
+            payload["log_date"] = payload.get("startDate") or payload.get("start_date") or payload.get("log_date")
+            payload["start_date"] = payload.get("startDate") or payload.get("start_date")
+            payload["end_date"] = payload.get("endDate") or payload.get("end_date")
+            payload["internship_id"] = payload.get("internshipId") or payload.get("internship_id")
+
+            if payload.get("week_number") and isinstance(payload["week_number"], str):
+                try:
+                    payload["week_number"] = int(payload["week_number"])
+                except ValueError:
+                    payload["week_number"] = None
+
+        serializer = DailyLogSerializer(data=payload)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save(student=profile)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class StudentFeedbackView(APIView):
+    permission_classes = [IsStudentUser]
+
+    def get(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        feedbacks = LogFeedback.objects.filter(log__student=profile, supervisor=profile.supervisor).order_by("-created_at")
+        return Response(StudentFeedbackSerializer(feedbacks, many=True).data)
 
 
 class StudentLogDetailView(APIView):

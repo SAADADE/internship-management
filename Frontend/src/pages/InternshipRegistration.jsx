@@ -58,6 +58,10 @@ export default function InternshipRegistration() {
         internship_supervisor: form.supervisorName,
         internship_supervisor_email: form.supervisorEmail,
         internship_duration: `${form.startDate} to ${form.endDate}`,
+        department: form.department,
+        description: form.description,
+        start_date: form.startDate,
+        end_date: form.endDate,
       }
       await createStudentInternship(payload)
       saveInternship({
