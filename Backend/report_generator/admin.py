@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Internship, InternshipReportDraft, Log, Report, Review, Student, Supervisor
+from .models import Company, Internship, InternshipReportDraft, Log, Report, Review, Student, Supervisor
+
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "created_by", "created_at")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("name", "created_by__username", "created_by__email")
 
 
 @admin.register(Student)

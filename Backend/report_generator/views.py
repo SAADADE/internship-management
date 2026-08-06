@@ -1,9 +1,15 @@
 import logging
+import mimetypes
+import os
+import uuid
+from datetime import timedelta
 
 from django.contrib.auth import authenticate, get_user_model, login
+from django.core.files.storage import default_storage
 from django.db.models import Q
+from django.http import FileResponse, HttpResponse
 from django.utils import timezone
-from django.http import HttpResponse
+from django.utils.text import get_valid_filename
 from rest_framework import status
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -22,7 +28,12 @@ class IsStudentProfileOwnerOrCreator(IsAuthenticated):
             return False
         if getattr(request.user, "student", None) is not None:
             return True
-        return request.method == "POST" and getattr(request.user, "supervisor", None) is None
+        return (
+            request.method == "POST"
+            and getattr(request.user, "supervisor", None) is None
+            and not request.user.is_staff
+            and not request.user.is_superuser
+        )
 
 
 class IsSupervisorUser(IsAuthenticated):
@@ -30,17 +41,28 @@ class IsSupervisorUser(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
         return getattr(request.user, "supervisor", None) is not None
+
+
+class IsAdminStaffUser(IsAuthenticated):
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return bool(request.user and request.user.is_active and request.user.is_staff)
+
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .docx_builder import build_docx
 from .file_extractor import extract_text_from_file
 from .llm_service import generate_report_structure
-from .models import Appraisal, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, SupervisorProfile
+from .models import Appraisal, Company, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, SupervisorProfile
 from .serializers import (
+    AdminCompanySerializer,
     AppraisalSerializer,
     AuthLoginSerializer,
     BulkStatusUpdateSerializer,
+    CompanySerializer,
     DailyLogSerializer,
     InternshipReportDraftSerializer,
     InternshipSerializer,
@@ -272,6 +294,14 @@ class StudentProfileView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
         return Response(serializer.data)
+
+
+class StudentCompanyListView(APIView):
+    permission_classes = [IsStudentUser]
+
+    def get(self, request):
+        companies = Company.objects.filter(is_active=True).order_by("name")
+        return Response(CompanySerializer(companies, many=True).data)
 
 
 class StudentDashboardView(APIView):
@@ -588,6 +618,50 @@ class StudentGenerateReportView(APIView):
         return response
 
 
+class StudentReportUploadView(APIView):
+    permission_classes = [IsStudentUser]
+    parser_classes = [MultiPartParser, JSONParser]
+
+    ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
+
+    def post(self, request):
+        profile = StudentProfile.objects.get(user=request.user)
+        uploaded_file = request.FILES.get("file")
+
+        if not uploaded_file:
+            return Response({"detail": "Report file is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(uploaded_file.name or "")[1].lower()
+        if ext not in self.ALLOWED_EXTENSIONS:
+            return Response(
+                {"detail": "Unsupported file type. Upload PDF, DOC, or DOCX."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        safe_name = get_valid_filename(os.path.basename(uploaded_file.name))
+        report_dir = f"reports/student_{profile.student_id}"
+        report_path = f"{report_dir}/{uuid.uuid4().hex}_{safe_name}"
+        stored_path = default_storage.save(report_path, uploaded_file)
+
+        report = Report.objects.create(
+            student=profile,
+            report_file=stored_path,
+            status="ready",
+            supervisor_feedback="",
+            grade=None,
+        )
+
+        return Response(
+            {
+                "id": str(report.report_id),
+                "filename": os.path.basename(stored_path),
+                "uploaded_at": report.created_at.isoformat(),
+                "status": report.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class SupervisorStudentsView(APIView):
     permission_classes = [IsSupervisorUser]
 
@@ -732,3 +806,342 @@ class SupervisorAppraisalDetailView(APIView):
             return Response({"detail": "Appraisal not found."}, status=status.HTTP_404_NOT_FOUND)
         appraisal.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminCompanyListCreateView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+        companies = Company.objects.all().order_by("name")
+        if query:
+            companies = companies.filter(name__icontains=query)
+        return Response(AdminCompanySerializer(companies, many=True).data)
+
+    def post(self, request):
+        serializer = AdminCompanySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        company = serializer.save(created_by=request.user)
+        return Response(AdminCompanySerializer(company).data, status=status.HTTP_201_CREATED)
+
+
+class AdminCompanyDetailView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def _get_company(self, company_id):
+        return Company.objects.filter(company_id=company_id).first()
+
+    def patch(self, request, company_id):
+        company = self._get_company(company_id)
+        if not company:
+            return Response({"detail": "Company not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminCompanySerializer(company, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, company_id):
+        company = self._get_company(company_id)
+        if not company:
+            return Response({"detail": "Company not found."}, status=status.HTTP_404_NOT_FOUND)
+        company.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminDashboardView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request):
+        total_students = StudentProfile.objects.count()
+        total_reports = Report.objects.count()
+        active_internships = Internship.objects.filter(status="active").count()
+
+        recent_registrations = []
+        for internship in Internship.objects.select_related("student").order_by("-created_at")[:6]:
+            recent_registrations.append(
+                {
+                    "id": str(internship.internship_id),
+                    "name": f"{internship.student.first_name} {internship.student.last_name}".strip() or internship.student.sch_email,
+                    "index": internship.student.index_number,
+                    "company": internship.company_name,
+                    "date": internship.created_at.date().isoformat(),
+                }
+            )
+
+        activity_items = []
+
+        for appraisal in Appraisal.objects.select_related("student", "supervisor").order_by("-submitted_at")[:6]:
+            activity_items.append(
+                {
+                    "id": f"appraisal-{appraisal.appraisal_id}",
+                    "type": "appraisal",
+                    "action": "Supervisor submitted appraisal",
+                    "detail": f"{appraisal.supervisor.fullname} completed evaluation for {appraisal.student.first_name} {appraisal.student.last_name}".strip(),
+                    "time": appraisal.submitted_at.isoformat(),
+                }
+            )
+
+        for report in Report.objects.select_related("student").order_by("-created_at")[:6]:
+            has_uploaded_file = bool((report.report_file or "").strip())
+            activity_items.append(
+                {
+                    "id": f"report-{report.report_id}",
+                    "type": "report",
+                    "action": "Student final report file submitted" if has_uploaded_file else "Student report draft generated",
+                    "detail": (
+                        f"{report.student.first_name} {report.student.last_name} uploaded a final report file"
+                        if has_uploaded_file
+                        else f"{report.student.first_name} {report.student.last_name} generated a report record"
+                    ).strip(),
+                    "time": report.created_at.isoformat(),
+                }
+            )
+
+        for internship in Internship.objects.select_related("student").order_by("-created_at")[:6]:
+            activity_items.append(
+                {
+                    "id": f"internship-{internship.internship_id}",
+                    "type": "internship",
+                    "action": "Internship registration received",
+                    "detail": f"{internship.student.first_name} {internship.student.last_name} registered at {internship.company_name}".strip(),
+                    "time": internship.created_at.isoformat(),
+                }
+            )
+
+        activity_items.sort(key=lambda item: item["time"], reverse=True)
+
+        return Response(
+            {
+                "stats": {
+                    "total_students": total_students,
+                    "total_reports": total_reports,
+                    "active_internships": active_internships,
+                },
+                "activity": activity_items[:8],
+                "recent_registrations": recent_registrations,
+            }
+        )
+
+
+class AdminStudentsView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request):
+        students = StudentProfile.objects.all().prefetch_related("supervisors", "internships").order_by("first_name", "last_name")
+
+        payload = []
+        for student in students:
+            latest_internship = student.internships.order_by("-created_at").first()
+            latest_report = student.reports.order_by("-created_at").first()
+            appraisal = getattr(student, "appraisal", None)
+
+            payload.append(
+                {
+                    "id": str(student.student_id),
+                    "name": f"{student.first_name} {student.last_name}".strip() or student.sch_email,
+                    "studentId": student.index_number,
+                    "email": student.sch_email,
+                    "department": student.department,
+                    "company": latest_internship.company_name if latest_internship else "",
+                    "status": latest_internship.status if latest_internship else "inactive",
+                    "startDate": latest_internship.start_date.isoformat() if latest_internship and latest_internship.start_date else "",
+                    "endDate": latest_internship.end_date.isoformat() if latest_internship and latest_internship.end_date else "",
+                    "hasSubmittedReportFile": bool(latest_report and (latest_report.report_file or "").strip()),
+                    "appraisalScore":
+                        sum(int(score) for score in appraisal.scores.values()) if appraisal and appraisal.scores else None,
+                }
+            )
+
+        return Response(payload)
+
+
+class AdminStudentDetailView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request, student_id):
+        student = StudentProfile.objects.filter(student_id=student_id).prefetch_related("supervisors", "internships", "logs", "reports").first()
+        if not student:
+            return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        latest_internship = student.internships.order_by("-created_at").first()
+        latest_report = student.reports.order_by("-created_at").first()
+        appraisal = getattr(student, "appraisal", None)
+
+        achievements = []
+        for log in student.logs.order_by("-created_at")[:5]:
+            text = (log.achievements or log.log_text or "").strip()
+            if text:
+                achievements.append(text[:140])
+        if not achievements:
+            achievements = ["No weekly achievements recorded yet."]
+
+        supervisors = [sup.fullname for sup in student.supervisors.all() if sup.fullname]
+
+        report_status = "Pending"
+        if latest_report:
+            report_status = "Reviewed" if latest_report.status == "graded" else "Submitted"
+
+        report_file_name = ""
+        report_download_url = ""
+        if latest_report and (latest_report.report_file or "").strip():
+            report_file_name = os.path.basename(latest_report.report_file)
+            report_download_url = f"/api/admin/reports/{latest_report.report_id}/download/"
+
+        payload = {
+            "id": str(student.student_id),
+            "name": f"{student.first_name} {student.last_name}".strip() or student.sch_email,
+            "studentId": student.index_number,
+            "email": student.sch_email,
+            "department": student.department,
+            "phone": student.phone_number,
+            "address": student.institution_name,
+            "company": latest_internship.company_name if latest_internship else "",
+            "status": latest_internship.status if latest_internship else "inactive",
+            "startDate": latest_internship.start_date.isoformat() if latest_internship and latest_internship.start_date else "",
+            "endDate": latest_internship.end_date.isoformat() if latest_internship and latest_internship.end_date else "",
+            "supervisor": ", ".join(supervisors) if supervisors else "Not linked",
+            "reportStatus": report_status,
+            "reportFileSubmitted": bool(report_file_name),
+            "reportFileName": report_file_name,
+            "reportDownloadUrl": report_download_url,
+            "appraisalStatus": "Received" if appraisal else "Pending",
+            "summary": "Student profile and internship progress overview generated from submitted records.",
+            "achievements": achievements,
+        }
+        return Response(payload)
+
+
+class AdminReportsIndexView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request):
+        final_reports = []
+        for report in Report.objects.select_related("student").order_by("-created_at"):
+            final_reports.append(
+                {
+                    "id": str(report.report_id),
+                    "studentName": f"{report.student.first_name} {report.student.last_name}".strip() or report.student.sch_email,
+                    "studentId": report.student.index_number,
+                    "department": report.student.department,
+                    "title": "Final Internship Report",
+                    "submittedOn": report.created_at.date().isoformat(),
+                    "status": report.status,
+                    "hasFile": bool((report.report_file or "").strip()),
+                }
+            )
+
+        appraisal_forms = []
+        for appraisal in Appraisal.objects.select_related("student", "supervisor").order_by("-submitted_at"):
+            appraisal_forms.append(
+                {
+                    "id": str(appraisal.appraisal_id),
+                    "studentName": f"{appraisal.student.first_name} {appraisal.student.last_name}".strip() or appraisal.student.sch_email,
+                    "studentId": appraisal.student.index_number,
+                    "supervisorName": appraisal.supervisor.fullname,
+                    "submittedOn": appraisal.submitted_at.date().isoformat(),
+                }
+            )
+
+        return Response({"finalReports": final_reports, "appraisalForms": appraisal_forms})
+
+
+class AdminReportDetailView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def _get_report(self, report_id):
+        return Report.objects.filter(report_id=report_id).select_related("student").first()
+
+    def get(self, request, report_id):
+        report = self._get_report(report_id)
+        if not report:
+            return Response({"detail": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        summary = (report.supervisor_feedback or "").strip()
+        if not summary:
+            summary = "No supervisor feedback yet."
+
+        sections = []
+        if report.report_file:
+            sections.append(f"Report file reference: {report.report_file}")
+        sections.append(f"Current status: {report.status}")
+        sections.append(f"Grade: {report.grade if report.grade is not None else 'Not graded'}")
+
+        payload = {
+            "id": str(report.report_id),
+            "studentName": f"{report.student.first_name} {report.student.last_name}".strip() or report.student.sch_email,
+            "studentId": report.student.index_number,
+            "department": report.student.department,
+            "company": report.student.company,
+            "title": "Final Internship Report",
+            "submittedOn": report.created_at.date().isoformat(),
+            "type": "Final Report",
+            "summary": summary,
+            "sections": sections,
+            "status": report.status,
+            "grade": str(report.grade) if report.grade is not None else "",
+            "feedback": report.supervisor_feedback or "",
+            "reportFileSubmitted": bool((report.report_file or "").strip()),
+            "reportFileName": os.path.basename(report.report_file) if (report.report_file or "").strip() else "",
+            "reportDownloadUrl": f"/api/admin/reports/{report.report_id}/download/" if (report.report_file or "").strip() else "",
+        }
+        return Response(payload)
+
+    def patch(self, request, report_id):
+        report = self._get_report(report_id)
+        if not report:
+            return Response({"detail": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        decision = request.data.get("decision", "").strip()
+        comment = request.data.get("comment", "").strip()
+        grade_value = request.data.get("grade")
+
+        if comment:
+            report.supervisor_feedback = comment
+
+        if decision == "Approved":
+            report.status = "graded"
+        else:
+            report.status = "ready"
+
+        if grade_value not in [None, ""]:
+            try:
+                report.grade = float(grade_value)
+            except (TypeError, ValueError):
+                return Response({"grade": "Grade must be a numeric value."}, status=status.HTTP_400_BAD_REQUEST)
+
+        report.save(update_fields=["supervisor_feedback", "status", "grade", "updated_at"])
+        return self.get(request, report_id)
+
+
+class AdminAppraisalDetailView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request, appraisal_id):
+        appraisal = Appraisal.objects.filter(appraisal_id=appraisal_id).select_related("student", "supervisor").first()
+        if not appraisal:
+            return Response({"detail": "Appraisal not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(AppraisalSerializer(appraisal, context={"request": request}).data)
+
+
+class AdminReportDownloadView(APIView):
+    permission_classes = [IsAdminStaffUser]
+
+    def get(self, request, report_id):
+        report = Report.objects.filter(report_id=report_id).first()
+        if not report:
+            return Response({"detail": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_path = (report.report_file or "").strip()
+        if not file_path:
+            return Response({"detail": "No uploaded file is attached to this report."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not default_storage.exists(file_path):
+            return Response({"detail": "Stored report file could not be found."}, status=status.HTTP_404_NOT_FOUND)
+
+        filename = os.path.basename(file_path)
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        file_handle = default_storage.open(file_path, "rb")
+        return FileResponse(file_handle, as_attachment=True, filename=filename, content_type=content_type)

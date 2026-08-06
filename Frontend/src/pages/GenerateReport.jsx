@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered, UploadCloud } from 'lucide-react'
-import { generateStudentReport, saveReportDraft } from '../api'
+import { generateStudentReport, saveReportDraft, uploadStudentReportFile } from '../api'
 
 const sectionConfig = [
   { key: 'abstract', label: 'Abstract', placeholder: 'Summarize the purpose, methods, and key outcomes of your internship experience.' },
@@ -91,10 +91,16 @@ export default function GenerateReport() {
 
       setLoading(true)
       setMessage(`Uploading ${selectedFile.name} for review...`)
-      await new Promise((resolve) => setTimeout(resolve, 900))
-      setSubmitted(true)
-      setMessage(`Your final report ${selectedFile.name} has been prepared for supervisor review.`)
-      setLoading(false)
+      try {
+        await uploadStudentReportFile(selectedFile)
+        setSubmitted(true)
+        setMessage(`Your final report ${selectedFile.name} has been submitted successfully.`)
+      } catch (err) {
+        setSubmitted(false)
+        setMessage(err.message || 'Unable to upload your report right now.')
+      } finally {
+        setLoading(false)
+      }
       return
     }
 

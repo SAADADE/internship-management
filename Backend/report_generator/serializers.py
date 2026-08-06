@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from django.utils import timezone
 
-from .models import Appraisal, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
+from .models import Appraisal, Company, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
 
 
 APPRAISAL_SCORE_LABELS = {
@@ -16,6 +16,46 @@ APPRAISAL_SCORE_LABELS = {
     "initiative": "8. Initiative",
     "leadership": "9. Leadership Drive",
 }
+
+
+class CompanySerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="company_id", read_only=True)
+
+    class Meta:
+        model = Company
+        fields = ["id", "name", "is_active"]
+        read_only_fields = ["id"]
+
+
+class AdminCompanySerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="company_id", read_only=True)
+    createdBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Company
+        fields = ["id", "name", "is_active", "createdBy", "created_at", "updated_at"]
+        read_only_fields = ["id", "createdBy", "created_at", "updated_at"]
+
+    def get_createdBy(self, obj):
+        if obj.created_by is None:
+            return None
+        return {
+            "id": obj.created_by.id,
+            "username": obj.created_by.username,
+            "email": obj.created_by.email,
+        }
+
+    def validate_name(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Company name is required.")
+
+        existing = Company.objects.filter(name__iexact=normalized)
+        if self.instance is not None:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("A company with this name already exists.")
+        return normalized
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):

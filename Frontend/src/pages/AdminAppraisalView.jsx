@@ -1,74 +1,7 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-
-const APPRAISAL_DATA = [
-  {
-    id: 1,
-    studentName: 'Kwame Ofori',
-    studentId: 'CS/0421/20',
-    department: 'Computer Science',
-    supervisorName: 'Dr. Ama Owusu',
-    position: 'Senior Lecturer',
-    submittedOn: '2024-03-10',
-    signature: 'Signed',
-    criteria: [
-      { key: 'punctuality', label: '1. Punctuality at Work', score: '5' },
-      { key: 'attitude', label: '2. Ability on the Job / Attitude to Work', score: '5' },
-      { key: 'superiors', label: '3. Relationship with Superiors', score: '4' },
-      { key: 'colleagues', label: '4. Relationship with Colleagues', score: '5' },
-      { key: 'cooperation', label: '5. Cooperation', score: '4' },
-      { key: 'safety', label: '6. Safety Consciousness', score: '4' },
-      { key: 'resourcefulness', label: '7. Resourcefulness', score: '4' },
-      { key: 'initiative', label: '8. Initiative', score: '5' },
-      { key: 'leadership', label: '9. Leadership Drive', score: '4' }
-    ],
-    generalComments: 'The student showed maturity, initiative, and a strong attitude towards learning. They were dependable and contributed positively to team activities.'
-  },
-  {
-    id: 2,
-    studentName: 'Efua Mensah',
-    studentId: 'ENG/0425/20',
-    department: 'Engineering',
-    supervisorName: 'Prof. John Asante',
-    position: 'Head of Department',
-    submittedOn: '2024-03-13',
-    signature: 'Signed',
-    criteria: [
-      { key: 'punctuality', label: '1. Punctuality at Work', score: '4' },
-      { key: 'attitude', label: '2. Ability on the Job / Attitude to Work', score: '4' },
-      { key: 'superiors', label: '3. Relationship with Superiors', score: '4' },
-      { key: 'colleagues', label: '4. Relationship with Colleagues', score: '5' },
-      { key: 'cooperation', label: '5. Cooperation', score: '4' },
-      { key: 'safety', label: '6. Safety Consciousness', score: '4' },
-      { key: 'resourcefulness', label: '7. Resourcefulness', score: '3' },
-      { key: 'initiative', label: '8. Initiative', score: '4' },
-      { key: 'leadership', label: '9. Leadership Drive', score: '3' }
-    ],
-    generalComments: 'The student was eager to learn and made steady progress throughout the placement. Their work quality improved significantly over time.'
-  },
-  {
-    id: 3,
-    studentName: 'Nana Ama Osei',
-    studentId: 'CS/0424/20',
-    department: 'Computer Science',
-    supervisorName: 'Dr. Grace Mensah',
-    position: 'Program Coordinator',
-    submittedOn: '2024-03-08',
-    signature: 'Signed',
-    criteria: [
-      { key: 'punctuality', label: '1. Punctuality at Work', score: '5' },
-      { key: 'attitude', label: '2. Ability on the Job / Attitude to Work', score: '4' },
-      { key: 'superiors', label: '3. Relationship with Superiors', score: '4' },
-      { key: 'colleagues', label: '4. Relationship with Colleagues', score: '5' },
-      { key: 'cooperation', label: '5. Cooperation', score: '5' },
-      { key: 'safety', label: '6. Safety Consciousness', score: '4' },
-      { key: 'resourcefulness', label: '7. Resourcefulness', score: '4' },
-      { key: 'initiative', label: '8. Initiative', score: '4' },
-      { key: 'leadership', label: '9. Leadership Drive', score: '4' }
-    ],
-    generalComments: 'The student handled responsibility well and demonstrated a positive professional attitude during the internship period.'
-  }
-]
+import { getAdminAppraisalDetail } from '../api'
 
 const RATING_LABELS = {
   '5': 'Excellent (5)',
@@ -81,14 +14,38 @@ const RATING_LABELS = {
 export default function AdminAppraisalView() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const [appraisal, setAppraisal] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const appraisal = APPRAISAL_DATA.find((item) => item.id === Number(id))
+  useEffect(() => {
+    const loadAppraisal = async () => {
+      try {
+        const payload = await getAdminAppraisalDetail(id)
+        setAppraisal(payload)
+      } catch (err) {
+        setError(err.message || 'Unable to load appraisal form.')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (!appraisal) {
+    loadAppraisal()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-2xl py-12 text-center">
+        <p className="text-sm text-gray-500">Loading appraisal details...</p>
+      </div>
+    )
+  }
+
+  if (!appraisal || error) {
     return (
       <div className="mx-auto max-w-2xl py-12 text-center">
         <h1 className="text-2xl font-semibold text-gray-900">Appraisal not found</h1>
-        <p className="mt-2 text-sm text-gray-500">The requested appraisal form could not be found.</p>
+        <p className="mt-2 text-sm text-gray-500">{error || 'The requested appraisal form could not be found.'}</p>
         <button onClick={() => navigate('/admin/reports')} className="btn-primary mt-6">
           Back to Reports
         </button>

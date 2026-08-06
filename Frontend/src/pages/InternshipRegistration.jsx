@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle, Building2, MapPin, User, Mail, Calendar, PlusCircle } from 'lucide-react'
-import { createStudentInternship } from '../api'
-import { getStoredProfile, getCompanyOptions, saveCustomCompany, saveInternship } from '../utils/storage'
+import { useEffect, useState } from 'react'
+import { CheckCircle, Building2, MapPin, User, Mail, Calendar } from 'lucide-react'
+import { createStudentInternship, getStudentCompanies } from '../api'
+import { getStoredProfile, saveInternship } from '../utils/storage'
 
 export default function InternshipRegistration() {
   const [form, setForm] = useState({
     companyName: '', location: '', supervisorName: '', supervisorEmail: '',
     startDate: '', endDate: '', department: '', description: '',
   })
-  const [customCompany, setCustomCompany] = useState('')
-  const [showCustomCompany, setShowCustomCompany] = useState(false)
   const [profile, setProfile] = useState(getStoredProfile())
-  const companyOptions = useMemo(() => getCompanyOptions(), [showCustomCompany])
+  const [companyOptions, setCompanyOptions] = useState([])
+  const [companiesLoading, setCompaniesLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -25,6 +24,34 @@ export default function InternshipRegistration() {
         supervisorName: current.supervisorName,
         supervisorEmail: current.supervisorEmail,
       }))
+    }
+
+    let isMounted = true
+    const loadCompanies = async () => {
+      setCompaniesLoading(true)
+      try {
+        const companies = await getStudentCompanies()
+        if (isMounted) {
+          setCompanyOptions(Array.isArray(companies) ? companies : [])
+        }
+      } catch {
+        if (isMounted) {
+          setErrors((current) => ({
+            ...current,
+            companyName: 'Unable to load companies. Please try again shortly.',
+          }))
+        }
+      } finally {
+        if (isMounted) {
+          setCompaniesLoading(false)
+        }
+      }
+    }
+
+    loadCompanies()
+
+    return () => {
+      isMounted = false
     }
   }, [])
 
@@ -126,45 +153,18 @@ export default function InternshipRegistration() {
                 <select
                   className={`form-input ${errors.companyName ? 'border-red-300 focus:ring-red-400' : ''}`}
                   value={form.companyName}
+                  disabled={companiesLoading}
                   onChange={(e) => {
-                    const value = e.target.value
-                    set('companyName', value)
-                    if (value === '__custom__') {
-                      setShowCustomCompany(true)
-                      set('companyName', '')
-                    }
+                    set('companyName', e.target.value)
                   }}
                 >
-                  <option value="">Select a company</option>
+                  <option value="">
+                    {companiesLoading ? 'Loading companies...' : 'Select a company'}
+                  </option>
                   {companyOptions.map((company) => (
-                    <option key={company} value={company}>{company}</option>
+                    <option key={company.id} value={company.name}>{company.name}</option>
                   ))}
-                  <option value="__custom__">Add a company not listed</option>
                 </select>
-                {showCustomCompany && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      className="form-input"
-                      placeholder="Enter company name"
-                      value={customCompany}
-                      onChange={(e) => setCustomCompany(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextCompany = saveCustomCompany(customCompany)
-                        if (customCompany.trim()) {
-                          set('companyName', customCompany.trim())
-                          setShowCustomCompany(false)
-                          setCustomCompany('')
-                        }
-                      }}
-                      className="btn-secondary px-3 py-2"
-                    >
-                      <PlusCircle size={16} />
-                    </button>
-                  </div>
-                )}
                 {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
               </div>
               <div>

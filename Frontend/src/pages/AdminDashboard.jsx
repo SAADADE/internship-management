@@ -1,73 +1,53 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import StatsCard from '../components/StatsCard'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts'
-import {
   Users, FileText, Briefcase,
-  Activity, UserCheck, AlertCircle, Clock,
-  RefreshCw, Download, Shield, CheckCircle
+  Activity, UserCheck,
+  RefreshCw, CheckCircle
 } from 'lucide-react'
-
-const WEEKLY_DATA = [
-  { week: 'Wk 1', submissions: 8,  reviews: 5 },
-  { week: 'Wk 2', submissions: 14, reviews: 11 },
-  { week: 'Wk 3', submissions: 10, reviews: 9 },
-  { week: 'Wk 4', submissions: 18, reviews: 14 },
-  { week: 'Wk 5', submissions: 22, reviews: 20 },
-  { week: 'Wk 6', submissions: 16, reviews: 15 },
-  { week: 'Wk 7', submissions: 24, reviews: 18 },
-  { week: 'Wk 8', submissions: 19, reviews: 19 },
-]
-
-const STATUS_PIE = [
-  { name: 'Reviewed',       value: 67, color: '#059669' },
-  { name: 'Pending',        value: 21, color: '#f59e0b' },
-  { name: 'Needs Revision', value: 8,  color: '#ef4444' },
-  { name: 'Rejected',       value: 4,  color: '#6b7280' },
-]
-
-const ACTIVITY_LOG = [
-  { icon: UserCheck, color: 'bg-primary-100 text-primary-700', action: 'Student appraisal submitted', detail: 'Kwame Ofori — Supervisor appraisal received', time: '5 min ago' },
-  { icon: FileText, color: 'bg-sky-100 text-sky-700', action: 'Final report submitted', detail: 'Peter Mensah — Final internship report uploaded', time: '22 min ago' },
-  { icon: CheckCircle, color: 'bg-emerald-100 text-emerald-700', action: 'Supervisor submitted appraisal', detail: 'Dr. Ama Owusu completed evaluation for Yaa Asantewaa', time: '1 hr ago' },
-  { icon: Briefcase, color: 'bg-rose-100 text-rose-700', action: 'Internship registration received', detail: 'Efua Mensah registered at Tullow Oil Ghana', time: '2 hrs ago' },
-  { icon: FileText, color: 'bg-violet-100 text-violet-700', action: 'Student final report submitted', detail: 'Ama Johnson — Report submitted for review', time: '3 hrs ago' },
-  { icon: UserCheck, color: 'bg-amber-100 text-amber-700', action: 'Internship registration completed', detail: 'Nana Ama Osei registered with Stanbic Bank', time: '4 hrs ago' },
-]
-
-const RECENT_REGISTRATIONS = [
-  { name: 'Yaa Asantewaa',   index: 'CS/0421/20', company: 'Bank of Ghana',       date: '2024-03-11' },
-  { name: 'Nana Ama Osei',   index: 'CS/0399/20', company: 'Stanbic Bank',        date: '2024-03-10' },
-  { name: 'Kwabena Frimpong',index: 'CS/0411/20', company: 'Ghana Water Company', date: '2024-03-09' },
-  { name: 'Akosua Dankwa',   index: 'CS/0403/20', company: 'Electricity Company', date: '2024-03-08' },
-]
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3">
-        <p className="font-heading font-semibold text-gray-800 text-xs mb-2">{label}</p>
-        {payload.map(p => (
-          <p key={p.name} className="text-xs font-body" style={{ color: p.color }}>
-            {p.name}: <strong>{p.value}</strong>
-          </p>
-        ))}
-      </div>
-    )
-  }
-  return null
-}
+import { getAdminDashboard } from '../api'
 
 
 export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false)
+  const [dashboard, setDashboard] = useState({ stats: {}, activity: [], recent_registrations: [] })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadDashboard = async () => {
+    setError('')
+    try {
+      const payload = await getAdminDashboard()
+      setDashboard(payload || { stats: {}, activity: [], recent_registrations: [] })
+    } catch (err) {
+      setError(err.message || 'Unable to load dashboard data.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDashboard()
+  }, [])
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await new Promise(r => setTimeout(r, 1000))
-    setRefreshing(false)
+    await loadDashboard()
+  }
+
+  const activityIcon = (type) => {
+    if (type === 'appraisal') return UserCheck
+    if (type === 'report') return FileText
+    if (type === 'internship') return Briefcase
+    return CheckCircle
+  }
+
+  const activityColor = (type) => {
+    if (type === 'appraisal') return 'bg-emerald-100 text-emerald-700'
+    if (type === 'report') return 'bg-sky-100 text-sky-700'
+    if (type === 'internship') return 'bg-amber-100 text-amber-700'
+    return 'bg-gray-100 text-gray-700'
   }
 
   return (
@@ -100,55 +80,12 @@ export default function AdminDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatsCard icon={Users}      label="Total Students"     value="247"  color="green"  trend={5}  trendLabel="vs last semester" />
-        <StatsCard icon={FileText}   label="Total Reports"      value="1,024" color="blue"  trend={12} trendLabel="this semester" />
-        <StatsCard icon={Briefcase}  label="Active Internships" value="198"  color="amber"  trendLabel="Currently ongoing" />
+        <StatsCard icon={Users} label="Total Students" value={dashboard.stats?.total_students ?? 0} color="green" trendLabel="Registered" />
+        <StatsCard icon={FileText} label="Total Reports" value={dashboard.stats?.total_reports ?? 0} color="blue" trendLabel="Submitted" />
+        <StatsCard icon={Briefcase} label="Active Internships" value={dashboard.stats?.active_internships ?? 0} color="amber" trendLabel="Currently ongoing" />
       </div>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 gap-6">
-
-        {/* Bar chart */}
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="section-title">Submissions per Week</h3>
-              <p className="text-xs text-gray-400 font-body mt-0.5">Reports submitted vs reviewed — Current semester</p>
-            </div>
-            <button className="btn-secondary text-xs py-1.5 px-3">
-              <Download size={13} /> Export
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={WEEKLY_DATA} barGap={4} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis
-                dataKey="week"
-                tick={{ fontSize: 11, fontFamily: 'DM Sans', fill: '#9ca3af' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fontFamily: 'DM Sans', fill: '#9ca3af' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
-              <Bar dataKey="submissions" name="Submitted" fill="#059669" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="reviews"     name="Reviewed"  fill="#a7f3d0" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex items-center gap-5 mt-2">
-            <span className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-3 h-3 rounded bg-primary-500" /> Submitted
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-3 h-3 rounded bg-primary-200" /> Reviewed
-            </span>
-          </div>
-        </div>
-
-      </div>
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -163,18 +100,24 @@ export default function AdminDashboard() {
             <span className="badge-success">Live</span>
           </div>
           <div className="space-y-1">
-            {ACTIVITY_LOG.map((log, i) => (
-              <div key={i} className="flex gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${log.color}`}>
-                  <log.icon size={14} />
+            {dashboard.activity.map((log, i) => {
+              const Icon = activityIcon(log.type)
+              return (
+                <div key={log.id || i} className="flex gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${activityColor(log.type)}`}>
+                    <Icon size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 font-body">{log.action}</p>
+                    <p className="text-xs text-gray-400 truncate">{log.detail}</p>
+                  </div>
+                  <span className="text-xs text-gray-300 whitespace-nowrap ml-auto pt-0.5">
+                    {new Date(log.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 font-body">{log.action}</p>
-                  <p className="text-xs text-gray-400 truncate">{log.detail}</p>
-                </div>
-                <span className="text-xs text-gray-300 whitespace-nowrap ml-auto pt-0.5">{log.time}</span>
-              </div>
-            ))}
+              )
+            })}
+            {!loading && dashboard.activity.length === 0 && <p className="text-sm text-gray-500">No recent activity yet.</p>}
           </div>
         </div>
 
@@ -195,7 +138,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {RECENT_REGISTRATIONS.map((r, i) => (
+              {dashboard.recent_registrations.map((r, i) => (
                 <tr key={i} className={`hover:bg-gray-50/60 transition-colors ${i % 2 ? 'bg-gray-50/30' : ''}`}>
                   <td className="table-cell">
                     <p className="font-medium text-gray-800 text-sm">{r.name}</p>
@@ -207,6 +150,11 @@ export default function AdminDashboard() {
                   </td>
                 </tr>
               ))}
+              {!loading && dashboard.recent_registrations.length === 0 && (
+                <tr>
+                  <td className="table-cell text-sm text-gray-500" colSpan={3}>No registrations yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

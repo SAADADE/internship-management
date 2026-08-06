@@ -1,86 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GraduationCap, Search, Mail, Briefcase, Calendar, MapPin, MoreVertical, Printer } from 'lucide-react'
-import { getStoredAppraisals } from '../utils/storage'
-
-const STUDENTS_DATA = [
-  {
-    id: 1,
-    name: 'Peter Mensah',
-    studentId: 'CS/0420/20',
-    email: 'peter.mensah@email.com',
-    department: 'Computer Science',
-    company: 'Tech Innovation Ltd',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31'
-  },
-  {
-    id: 2,
-    name: 'Kwame Ofori',
-    studentId: 'CS/0421/20',
-    email: 'kwame.ofori@email.com',
-    department: 'Computer Science',
-    company: 'Digital Solutions Inc',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31'
-  },
-  {
-    id: 3,
-    name: 'Ama Johnson',
-    studentId: 'ENG/0422/20',
-    email: 'ama.johnson@email.com',
-    department: 'Engineering',
-    company: 'Cloud Services Ltd',
-    status: 'active',
-    startDate: '2024-02-15',
-    endDate: '2024-06-15'
-  },
-  {
-    id: 4,
-    name: 'Yaa Asantewaa',
-    studentId: 'BUS/0423/20',
-    email: 'yaa.asantewaa@email.com',
-    department: 'Business',
-    company: 'Enterprise Solutions',
-    status: 'active',
-    startDate: '2024-03-01',
-    endDate: '2024-06-30'
-  },
-  {
-    id: 5,
-    name: 'Nana Ama Osei',
-    studentId: 'CS/0424/20',
-    email: 'nana.osei@email.com',
-    department: 'Computer Science',
-    company: 'Tech Innovations',
-    status: 'completed',
-    startDate: '2024-01-15',
-    endDate: '2024-04-30'
-  },
-  {
-    id: 6,
-    name: 'Efua Mensah',
-    studentId: 'ENG/0425/20',
-    email: 'efua.mensah@email.com',
-    department: 'Engineering',
-    company: 'Tullow Oil Ghana',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31'
-  }
-]
+import { getAdminStudents } from '../api'
 
 export default function AdminStudents() {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDept, setFilterDept] = useState('all')
-  const appraisals = getStoredAppraisals()
+  const [students, setStudents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const departments = ['all', ...new Set(STUDENTS_DATA.map(s => s.department))]
+  useEffect(() => {
+    const loadStudents = async () => {
+      setError('')
+      try {
+        const payload = await getAdminStudents()
+        setStudents(Array.isArray(payload) ? payload : [])
+      } catch (err) {
+        setError(err.message || 'Unable to load students.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadStudents()
+  }, [])
 
-  const filteredStudents = STUDENTS_DATA.filter(student => {
+  const departments = ['all', ...new Set(students.map((s) => s.department).filter(Boolean))]
+
+  const filteredStudents = students.filter(student => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,6 +45,10 @@ export default function AdminStudents() {
         return <span className="badge-success">Active</span>
       case 'completed':
         return <span className="badge-primary">Completed</span>
+      case 'pending':
+        return <span className="badge-warning">Pending</span>
+      case 'rejected':
+        return <span className="badge-error">Rejected</span>
       case 'inactive':
         return <span className="badge-error">Inactive</span>
       default:
@@ -104,16 +56,16 @@ export default function AdminStudents() {
     }
   }
 
-  const activeCount = STUDENTS_DATA.filter(s => s.status === 'active').length
-  const completedCount = STUDENTS_DATA.filter(s => s.status === 'completed').length
+  const activeCount = students.filter(s => s.status === 'active').length
+  const completedCount = students.filter(s => s.status === 'completed').length
   const summary = useMemo(() => {
-    const byCollege = STUDENTS_DATA.reduce((acc, student) => {
+    const byCollege = students.reduce((acc, student) => {
       const college = student.department || 'Unassigned'
       acc[college] = (acc[college] || 0) + 1
       return acc
     }, {})
     return Object.entries(byCollege).map(([college, count]) => ({ college, count }))
-  }, [])
+  }, [students])
 
   const handlePrint = () => {
     const grouped = filteredStudents.reduce((acc, student) => {
@@ -125,10 +77,7 @@ export default function AdminStudents() {
 
     const rows = Object.entries(grouped).map(([group, students]) => {
       const innerRows = students.map((student) => {
-        const appraisal = appraisals.find((item) => item.studentId === student.studentId)
-        const score = appraisal?.criteria?.length
-          ? appraisal.criteria.reduce((sum, criterion) => sum + Number(criterion.score || 0), 0)
-          : 'Pending'
+        const score = student.appraisalScore == null ? 'Pending' : student.appraisalScore
         return `<tr><td style="border:1px solid #ddd;padding:8px">${student.name}</td><td style="border:1px solid #ddd;padding:8px">${student.studentId}</td><td style="border:1px solid #ddd;padding:8px">${student.department}</td><td style="border:1px solid #ddd;padding:8px">${student.company}</td><td style="border:1px solid #ddd;padding:8px">${score === 'Pending' ? 'Pending' : `${score}/45`}</td></tr>`
       }).join('')
       return `<tr><td colspan="5" style="border:1px solid #ddd;padding:8px;font-weight:bold;background:#f8fafc">${group}</td></tr>${innerRows}`
@@ -159,11 +108,13 @@ export default function AdminStudents() {
             <p className="text-xs text-gray-600">Completed</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{STUDENTS_DATA.length}</p>
+            <p className="text-2xl font-bold text-gray-900">{students.length}</p>
             <p className="text-xs text-gray-600">Total</p>
           </div>
         </div>
       </div>
+
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {/* Search & Filter Bar */}
       <div className="card p-4 space-y-4">
@@ -213,7 +164,11 @@ export default function AdminStudents() {
 
       {/* Students Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredStudents.length === 0 ? (
+        {loading ? (
+          <div className="col-span-full text-center card p-12">
+            <p className="text-gray-500 font-medium">Loading students...</p>
+          </div>
+        ) : filteredStudents.length === 0 ? (
           <div className="col-span-full text-center card p-12">
             <GraduationCap size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 font-medium">No students found</p>

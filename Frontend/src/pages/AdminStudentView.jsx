@@ -1,127 +1,43 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, GraduationCap, Mail, Briefcase, Calendar, MapPin, FileText, CheckCircle, Clock3 } from 'lucide-react'
-
-const STUDENT_DATA = [
-  {
-    id: 1,
-    name: 'Peter Mensah',
-    studentId: 'CS/0420/20',
-    email: 'peter.mensah@email.com',
-    department: 'Computer Science',
-    company: 'Tech Innovation Ltd',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31',
-    supervisor: 'Dr. Ama Owusu',
-    phone: '+233 24 123 4567',
-    address: 'Accra, Ghana',
-    reportStatus: 'Submitted',
-    appraisalStatus: 'Received',
-    summary: 'Peter has shown strong technical growth, consistent punctuality, and a proactive approach to assigned tasks during the internship period.',
-    achievements: ['Completed software testing and support tasks', 'Worked well with cross-functional teams', 'Maintained clear technical documentation']
-  },
-  {
-    id: 2,
-    name: 'Kwame Ofori',
-    studentId: 'CS/0421/20',
-    email: 'kwame.ofori@email.com',
-    department: 'Computer Science',
-    company: 'Digital Solutions Inc',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31',
-    supervisor: 'Prof. John Asante',
-    phone: '+233 20 456 7890',
-    address: 'Kumasi, Ghana',
-    reportStatus: 'Pending Review',
-    appraisalStatus: 'Received',
-    summary: 'Kwame demonstrated a solid grasp of technical fundamentals and steady improvement in handling real-world responsibilities.',
-    achievements: ['Delivered support for internal systems', 'Improved problem-solving under supervision', 'Maintained professional communication']
-  },
-  {
-    id: 3,
-    name: 'Ama Johnson',
-    studentId: 'ENG/0422/20',
-    email: 'ama.johnson@email.com',
-    department: 'Engineering',
-    company: 'Cloud Services Ltd',
-    status: 'active',
-    startDate: '2024-02-15',
-    endDate: '2024-06-15',
-    supervisor: 'Dr. Grace Mensah',
-    phone: '+233 27 678 9012',
-    address: 'Takoradi, Ghana',
-    reportStatus: 'Submitted',
-    appraisalStatus: 'Pending',
-    summary: 'Ama has shown a thoughtful approach to engineering tasks and has built strong professional habits during placement.',
-    achievements: ['Assisted with technical documentation', 'Showed strong teamwork', 'Adapted quickly to field work']
-  },
-  {
-    id: 4,
-    name: 'Yaa Asantewaa',
-    studentId: 'BUS/0423/20',
-    email: 'yaa.asantewaa@email.com',
-    department: 'Business',
-    company: 'Enterprise Solutions',
-    status: 'active',
-    startDate: '2024-03-01',
-    endDate: '2024-06-30',
-    supervisor: 'Mr. Kofi Boateng',
-    phone: '+233 26 345 6789',
-    address: 'Ho, Ghana',
-    reportStatus: 'Submitted',
-    appraisalStatus: 'Received',
-    summary: 'Yaa has shown professionalism, clear communication, and strong ownership of assigned responsibilities.',
-    achievements: ['Supported business operations tasks', 'Produced polished reports', 'Built confidence in stakeholder communication']
-  },
-  {
-    id: 5,
-    name: 'Nana Ama Osei',
-    studentId: 'CS/0424/20',
-    email: 'nana.osei@email.com',
-    department: 'Computer Science',
-    company: 'Tech Innovations',
-    status: 'completed',
-    startDate: '2024-01-15',
-    endDate: '2024-04-30',
-    supervisor: 'Dr. Rebecca Appiah',
-    phone: '+233 24 987 6543',
-    address: 'Tamale, Ghana',
-    reportStatus: 'Reviewed',
-    appraisalStatus: 'Received',
-    summary: 'Nana Ama completed the internship successfully and demonstrated excellent professionalism throughout the placement.',
-    achievements: ['Completed all assigned tasks', 'Exceeded expectations in communication', 'Delivered a strong final report']
-  },
-  {
-    id: 6,
-    name: 'Efua Mensah',
-    studentId: 'ENG/0425/20',
-    email: 'efua.mensah@email.com',
-    department: 'Engineering',
-    company: 'Tullow Oil Ghana',
-    status: 'active',
-    startDate: '2024-02-01',
-    endDate: '2024-05-31',
-    supervisor: 'Prof. Daniel Addo',
-    phone: '+233 20 111 2222',
-    address: 'Sunyani, Ghana',
-    reportStatus: 'Pending Review',
-    appraisalStatus: 'Received',
-    summary: 'Efua has shown resilience and a strong willingness to learn while handling engineering-related responsibilities.',
-    achievements: ['Assisted with field observations', 'Maintained professional conduct', 'Showed strong learning attitude']
-  }
-]
+import { ArrowLeft, GraduationCap, Mail, Briefcase, Calendar, MapPin, CheckCircle, Download, FileText } from 'lucide-react'
+import { getAdminStudentDetail } from '../api'
 
 export default function AdminStudentView() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const student = STUDENT_DATA.find((item) => item.id === Number(id))
+  const [student, setStudent] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  if (!student) {
+  useEffect(() => {
+    const loadStudent = async () => {
+      try {
+        const payload = await getAdminStudentDetail(id)
+        setStudent(payload)
+      } catch (err) {
+        setError(err.message || 'Unable to load student details.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadStudent()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-2xl py-12 text-center">
+        <p className="text-sm text-gray-500">Loading student details...</p>
+      </div>
+    )
+  }
+
+  if (!student || error) {
     return (
       <div className="mx-auto max-w-2xl py-12 text-center">
         <h1 className="text-2xl font-semibold text-gray-900">Student not found</h1>
-        <p className="mt-2 text-sm text-gray-500">The requested student profile could not be found.</p>
+        <p className="mt-2 text-sm text-gray-500">{error || 'The requested student profile could not be found.'}</p>
         <button onClick={() => navigate('/admin/students')} className="btn-primary mt-6">
           Back to Students
         </button>
@@ -220,6 +136,23 @@ export default function AdminStudentView() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">Final Report</span>
                   <span className="text-sm font-semibold text-primary-700">{student.reportStatus}</span>
+                </div>
+                <div className="mt-3 border-t border-gray-200 pt-3">
+                  {student.reportFileSubmitted ? (
+                    <div className="space-y-2">
+                      <p className="flex items-center gap-2 text-sm text-emerald-700">
+                        <FileText size={14} /> File submitted: {student.reportFileName}
+                      </p>
+                      <a
+                        href={student.reportDownloadUrl}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                      >
+                        <Download size={14} /> Download report file
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No final report file has been uploaded yet.</p>
+                  )}
                 </div>
               </div>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">

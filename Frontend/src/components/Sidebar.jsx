@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Briefcase, FileText, MessageSquare,
-  Settings, LogOut, GraduationCap, ChevronRight
+  LogOut, GraduationCap, ChevronRight
 } from 'lucide-react'
 
 const studentNav = [
@@ -22,9 +22,9 @@ const supervisorNav = [
 
 const adminNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
+  { label: 'Companies', icon: Briefcase, to: '/admin/companies' },
   { label: 'Students', icon: GraduationCap, to: '/admin/students' },
   { label: 'Reports & Appraisals', icon: FileText, to: '/admin/reports' },
-  { label: 'Settings', icon: Settings, to: '/admin/settings' },
 ]
 
 export default function Sidebar({ collapsed, onToggle }) {

@@ -10,6 +10,7 @@ const PAGE_META = {
   '/reports/upload':       { title: 'Upload Report', breadcrumb: 'Student Portal / Reports / Upload' },
   '/supervisor':           { title: 'Supervisor Dashboard', breadcrumb: 'Supervisor Portal / Dashboard' },
   '/admin':                { title: 'Admin Dashboard', breadcrumb: 'Admin Portal / Dashboard' },
+  '/admin/companies':      { title: 'Manage Companies', breadcrumb: 'Admin Portal / Companies' },
   '/profile':              { title: 'My Profile', breadcrumb: 'Account / Profile' },
 }
 

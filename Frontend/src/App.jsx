@@ -12,6 +12,7 @@ import ReportReview from './pages/ReportReview'
 import SupervisorReports from './pages/SupervisorReports'
 import InternAppraisal from './pages/InternAppraisal'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminCompanies from './pages/AdminCompanies'
 import Profile from './pages/Profile'
 import Feedback from './pages/Feedback'
 import GenerateReport from './pages/GenerateReport'
@@ -125,6 +126,11 @@ export default function App() {
           <Route path="/admin/students" element={
             <ProtectedRoute roles={['admin']}>
               <Layout><AdminStudents /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/companies" element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout><AdminCompanies /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/admin/students/:id" element={

@@ -1,60 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
-  ZoomIn, ZoomOut, ChevronLeft, ChevronRight, MessageSquare, Star
+  ZoomIn, ZoomOut, ChevronLeft, ChevronRight, MessageSquare, Star, Download
 } from 'lucide-react'
-
-const REPORT_DATA = [
-  {
-    id: 1,
-    studentName: 'Peter Mensah',
-    studentId: 'CS/0420/20',
-    department: 'Computer Science',
-    company: 'Tech Innovation Ltd',
-    title: 'Final Internship Report',
-    submittedOn: '2024-03-15',
-    type: 'Final Report',
-    summary: 'The student completed a full internship cycle with strong technical delivery and clear reflection on workplace learning.',
-    sections: [
-      'Abstract: This report documents the student’s contribution to software testing and support during the internship placement.',
-      'Introduction: The internship was undertaken at Tech Innovation Ltd, where the student worked with the operations and IT support teams.',
-      'Conclusion: The student demonstrated professionalism, adaptability, and a strengthened understanding of real-world workplace systems.'
-    ]
-  },
-  {
-    id: 2,
-    studentName: 'Ama Johnson',
-    studentId: 'ENG/0422/20',
-    department: 'Engineering',
-    company: 'Cloud Services Ltd',
-    title: 'Final Internship Report',
-    submittedOn: '2024-03-14',
-    type: 'Final Report',
-    summary: 'The student worked on process improvement initiatives and presented a strong understanding of engineering practices.',
-    sections: [
-      'Abstract: The report reflects the student’s involvement in a structural engineering support project during the internship.',
-      'Introduction: The placement at Cloud Services Ltd provided practical exposure to engineering documentation and operations.',
-      'Conclusion: The internship helped the student connect academic learning with professional engineering expectations.'
-    ]
-  },
-  {
-    id: 3,
-    studentName: 'Yaa Asantewaa',
-    studentId: 'BUS/0423/20',
-    department: 'Business',
-    company: 'Enterprise Solutions',
-    title: 'Final Internship Report',
-    submittedOn: '2024-03-12',
-    type: 'Final Report',
-    summary: 'The student contributed to business process documentation and gained useful exposure to stakeholder communication.',
-    sections: [
-      'Abstract: This report highlights the student’s work in a business operations setting and their role in supporting internal reporting.',
-      'Introduction: The internship at Enterprise Solutions introduced the student to business analysis and project coordination.',
-      'Conclusion: The experience built confidence in communication, planning, and professional teamwork.'
-    ]
-  }
-]
+import { getAdminReportDetail, updateAdminReportDetail } from '../api'
 
 function ReportPreview({ report }) {
   const [page, setPage] = useState(1)
@@ -163,28 +113,68 @@ export default function AdminReportView() {
   const [submitting, setSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [report, setReport] = useState(null)
 
-  const report = REPORT_DATA.find((item) => item.id === Number(id))
+  useEffect(() => {
+    const loadReport = async () => {
+      try {
+        const payload = await getAdminReportDetail(id)
+        setReport(payload)
+        setComment(payload.feedback || '')
+        setGrade(payload.grade || '')
+        if (payload.status === 'graded') {
+          setStatus('Approved')
+        } else {
+          setStatus('Needs Revision')
+        }
+      } catch (err) {
+        setError(err.message || 'Unable to load report.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadReport()
+  }, [id])
 
   const handleSubmit = async () => {
     if (!comment.trim()) return alert('Please add feedback before submitting.')
     setSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    setSubmitting(false)
-    setSubmitted(true)
+    try {
+      const payload = await updateAdminReportDetail(id, {
+        decision: status,
+        comment,
+        grade,
+      })
+      setReport(payload)
+      setSubmitted(true)
+    } catch (err) {
+      setError(err.message || 'Unable to submit feedback.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = () => {
     setSaved(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setSaved(false)
+    setTimeout(() => setSaved(false), 800)
   }
 
-  if (!report) {
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-2xl py-12 text-center">
+        <p className="text-sm text-gray-500">Loading report...</p>
+      </div>
+    )
+  }
+
+  if (!report || error) {
     return (
       <div className="mx-auto max-w-2xl py-12 text-center">
         <h1 className="text-2xl font-semibold text-gray-900">Report not found</h1>
-        <p className="mt-2 text-sm text-gray-500">The requested report could not be found.</p>
+        <p className="mt-2 text-sm text-gray-500">{error || 'The requested report could not be found.'}</p>
         <button onClick={() => navigate('/admin/reports')} className="btn-primary mt-6">
           Back to Reports
         </button>
@@ -231,7 +221,15 @@ export default function AdminReportView() {
             <span className="flex items-center gap-1"><Building2 size={12} /> {report.company}</span>
             <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(report.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           </div>
-          <span className="badge-warning ml-2">Pending Review</span>
+          {report.reportFileSubmitted && report.reportDownloadUrl && (
+            <a
+              href={report.reportDownloadUrl}
+              className="inline-flex items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-100"
+            >
+              <Download size={12} /> Download file
+            </a>
+          )}
+          <span className="badge-warning ml-2">{report.status === 'graded' ? 'Reviewed' : 'Pending Review'}</span>
         </div>
       </div>
 
@@ -289,14 +287,13 @@ export default function AdminReportView() {
               </label>
               <select className="form-input" value={grade} onChange={(e) => setGrade(e.target.value)}>
                 <option value="">Select grade...</option>
-                <option value="A+">A+ (Exceptional)</option>
-                <option value="A">A (Excellent)</option>
-                <option value="B+">B+ (Very Good)</option>
-                <option value="B">B (Good)</option>
-                <option value="C+">C+ (Above Average)</option>
-                <option value="C">C (Average)</option>
-                <option value="D">D (Below Average)</option>
-                <option value="F">F (Fail)</option>
+                <option value="4.00">A (4.00)</option>
+                <option value="3.50">B+ (3.50)</option>
+                <option value="3.00">B (3.00)</option>
+                <option value="2.50">C+ (2.50)</option>
+                <option value="2.00">C (2.00)</option>
+                <option value="1.00">D (1.00)</option>
+                <option value="0.00">F (0.00)</option>
               </select>
             </div>
 

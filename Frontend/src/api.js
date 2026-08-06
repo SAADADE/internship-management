@@ -84,6 +84,10 @@ export function createStudentInternship(payload) {
   return apiRequest('/student/internships/', { method: 'POST', body: payload })
 }
 
+export function getStudentCompanies() {
+  return apiRequest('/student/companies/')
+}
+
 export function getStudentDashboardSummary() {
   return apiRequest('/student/dashboard/')
 }
@@ -114,6 +118,15 @@ export function generateStudentReport() {
     body: {},
     expectBlob: true,
     parseJson: false,
+  })
+}
+
+export function uploadStudentReportFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiRequest('/student/reports/upload/', {
+    method: 'POST',
+    body: formData,
   })
 }
 
@@ -159,4 +172,53 @@ export function updateSupervisorLog(logId, payload) {
 
 export function bulkUpdateSupervisorLogs(payload) {
   return apiRequest('/supervisor/logs/bulk-status/', { method: 'POST', body: payload })
+}
+
+export function getAdminCompanies(search = '') {
+  const query = search ? `?q=${encodeURIComponent(search)}` : ''
+  return apiRequest(`/admin/companies/${query}`)
+}
+
+export function createAdminCompany(payload) {
+  return apiRequest('/admin/companies/', { method: 'POST', body: payload })
+}
+
+export function updateAdminCompany(companyId, payload) {
+  return apiRequest(`/admin/companies/${companyId}/`, { method: 'PATCH', body: payload })
+}
+
+export function deleteAdminCompany(companyId) {
+  return apiRequest(`/admin/companies/${companyId}/`, { method: 'DELETE', parseJson: false })
+}
+
+export function getAdminDashboard() {
+  return apiRequest('/admin/dashboard/')
+}
+
+export function getAdminStudents() {
+  return apiRequest('/admin/students/')
+}
+
+export function getAdminStudentDetail(studentId) {
+  return apiRequest(`/admin/students/${studentId}/`)
+}
+
+export function getAdminReportsIndex() {
+  return apiRequest('/admin/reports/')
+}
+
+export function getAdminReportDetail(reportId) {
+  return apiRequest(`/admin/reports/${reportId}/`)
+}
+
+export function updateAdminReportDetail(reportId, payload) {
+  return apiRequest(`/admin/reports/${reportId}/`, { method: 'PATCH', body: payload })
+}
+
+export function getAdminAppraisalDetail(appraisalId) {
+  return apiRequest(`/admin/appraisals/${appraisalId}/`)
+}
+
+export function getAdminReportDownloadUrl(reportId) {
+  return `${API_BASE}/admin/reports/${reportId}/download/`
 }

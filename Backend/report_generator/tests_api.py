@@ -1,11 +1,12 @@
 from datetime import date
 from unittest.mock import patch
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Appraisal, Internship, Log, Report, Review, Student, Supervisor
+from .models import Appraisal, Company, Internship, Log, Report, Review, Student, Supervisor
 
 
 class BackendApiTests(TestCase):
@@ -47,6 +48,15 @@ class BackendApiTests(TestCase):
         )
         return user, supervisor
 
+    def create_admin_user(self, username="admin", email="admin@example.com"):
+        return self.user_model.objects.create_user(
+            username=username,
+            email=email,
+            password="StrongPass123!",
+            is_staff=True,
+            is_superuser=False,
+        )
+
     def test_student_registration_creates_user_and_profile(self):
         response = self.client.post(
             "/api/auth/register/",
@@ -73,6 +83,24 @@ class BackendApiTests(TestCase):
         student = Student.objects.get(sch_email="ada@example.com")
         self.assertEqual(student.level, "300")
         self.assertEqual(response.data["profile"]["level"], "300")
+
+    def test_registration_rejects_admin_role(self):
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "first_name": "Mallory",
+                "last_name": "Evil",
+                "email": "mallory@example.com",
+                "username": "mallory",
+                "password": "StrongPass123!",
+                "role": "admin",
+                "index_number": "20249999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.user_model.objects.filter(username="mallory").exists())
 
     def test_login_returns_user_payload_and_sets_session(self):
         user, _ = self.create_student_user()
@@ -417,6 +445,209 @@ class BackendApiTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         mock_generate.assert_called_once()
         mock_build.assert_called_once()
+
+    def test_student_companies_endpoint_returns_only_active_companies(self):
+        user, _ = self.create_student_user()
+        self.client.force_authenticate(user)
+        active_company = Company.objects.create(name="Alpha Logistics Ltd", is_active=True)
+        Company.objects.create(name="Archived Co", is_active=False)
+
+        response = self.client.get("/api/student/companies/")
+
+        self.assertEqual(response.status_code, 200)
+        returned_names = [item["name"] for item in response.data]
+        self.assertIn(active_company.name, returned_names)
+        self.assertNotIn("Archived Co", returned_names)
+
+    def test_non_admin_cannot_manage_companies(self):
+        student_user, _ = self.create_student_user()
+        self.client.force_authenticate(student_user)
+
+        create_response = self.client.post("/api/admin/companies/", {"name": "Denied Co"}, format="json")
+        self.assertEqual(create_response.status_code, 403)
+
+    def test_admin_can_create_update_and_delete_company(self):
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+
+        create_response = self.client.post(
+            "/api/admin/companies/",
+            {"name": "NextWave Manufacturing", "is_active": True},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        company_id = create_response.data["id"]
+
+        update_response = self.client.patch(
+            f"/api/admin/companies/{company_id}/",
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertFalse(update_response.data["is_active"])
+
+        delete_response = self.client.delete(f"/api/admin/companies/{company_id}/")
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(Company.objects.filter(company_id=company_id).exists())
+
+    def test_admin_company_name_is_case_insensitive_unique(self):
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+        Company.objects.create(name="Acme Resources", created_by=admin_user)
+
+        response = self.client.post(
+            "/api/admin/companies/",
+            {"name": "acme resources"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("name", response.data)
+
+    def test_admin_dashboard_endpoint_requires_staff_and_returns_stats(self):
+        student_user, student = self.create_student_user()
+        Internship.objects.create(student=student, company_name="ACME", internship_position="Intern", status="active")
+        Report.objects.create(student=student, status="ready")
+
+        self.client.force_authenticate(student_user)
+        denied = self.client.get("/api/admin/dashboard/")
+        self.assertEqual(denied.status_code, 403)
+
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+        response = self.client.get("/api/admin/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["stats"]["total_students"], 1)
+        self.assertEqual(response.data["stats"]["total_reports"], 1)
+        self.assertEqual(response.data["stats"]["active_internships"], 1)
+
+    def test_admin_students_and_detail_endpoints(self):
+        user, student = self.create_student_user()
+        supervisor = Supervisor.objects.create(fullname="Dr. AdminTest", email="admintest@example.com")
+        student.supervisors.add(supervisor)
+        Internship.objects.create(
+            student=student,
+            company_name="Cloud Services Ltd",
+            internship_position="Software Intern",
+            status="active",
+            start_date="2026-07-01",
+            end_date="2026-09-30",
+        )
+        report = Report.objects.create(student=student, status="graded", grade=4.0, report_file="reports/student_test/sample_report.docx")
+        Log.objects.create(student=student, log_text="Completed integration tasks", achievements="Completed integration tasks")
+
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+
+        list_response = self.client.get("/api/admin/students/")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(len(list_response.data), 1)
+
+        student_id = list_response.data[0]["id"]
+        detail_response = self.client.get(f"/api/admin/students/{student_id}/")
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.data["company"], "Cloud Services Ltd")
+        self.assertIn("Completed integration tasks", detail_response.data["achievements"][0])
+        self.assertTrue(detail_response.data["reportFileSubmitted"])
+        self.assertIn(str(report.report_id), detail_response.data["reportDownloadUrl"])
+
+    def test_admin_reports_and_detail_endpoints(self):
+        user, student = self.create_student_user()
+        report = Report.objects.create(student=student, status="ready", supervisor_feedback="Initial feedback")
+        supervisor_user, supervisor = self.create_supervisor_user()
+        appraisal = Appraisal.objects.create(
+            student=student,
+            supervisor=supervisor,
+            scores={
+                "punctuality": "4",
+                "attitude": "4",
+                "superiors": "4",
+                "colleagues": "4",
+                "cooperation": "4",
+                "safety": "4",
+                "resourcefulness": "4",
+                "initiative": "4",
+                "leadership": "4",
+            },
+        )
+
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+
+        index_response = self.client.get("/api/admin/reports/")
+        self.assertEqual(index_response.status_code, 200)
+        self.assertEqual(len(index_response.data["finalReports"]), 1)
+        self.assertEqual(len(index_response.data["appraisalForms"]), 1)
+
+        detail_response = self.client.get(f"/api/admin/reports/{report.report_id}/")
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.data["status"], "ready")
+
+        patch_response = self.client.patch(
+            f"/api/admin/reports/{report.report_id}/",
+            {"decision": "Approved", "comment": "Excellent", "grade": "4.00"},
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.data["status"], "graded")
+
+        appraisal_response = self.client.get(f"/api/admin/appraisals/{appraisal.appraisal_id}/")
+        self.assertEqual(appraisal_response.status_code, 200)
+        self.assertEqual(appraisal_response.data["studentId"], student.index_number)
+
+    def test_student_can_upload_report_file_and_admin_can_download(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+
+        uploaded_file = SimpleUploadedFile(
+            "internship_report.docx",
+            b"fake-docx-content",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        upload_response = self.client.post(
+            "/api/student/reports/upload/",
+            {"file": uploaded_file},
+            format="multipart",
+        )
+
+        self.assertEqual(upload_response.status_code, 201)
+        report_id = upload_response.data["id"]
+
+        admin_user = self.create_admin_user()
+        self.client.force_authenticate(admin_user)
+
+        dashboard_response = self.client.get("/api/admin/dashboard/")
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertTrue(any("uploaded a final report file" in item["detail"] for item in dashboard_response.data["activity"]))
+
+        student_detail_response = self.client.get(f"/api/admin/students/{student.student_id}/")
+        self.assertEqual(student_detail_response.status_code, 200)
+        self.assertTrue(student_detail_response.data["reportFileSubmitted"])
+        self.assertIn(report_id, student_detail_response.data["reportDownloadUrl"])
+
+        download_response = self.client.get(f"/api/admin/reports/{report_id}/download/")
+        self.assertEqual(download_response.status_code, 200)
+        self.assertIn("attachment;", download_response["Content-Disposition"])
+
+    def test_student_report_upload_rejects_invalid_extension(self):
+        user, _ = self.create_student_user()
+        self.client.force_authenticate(user)
+
+        uploaded_file = SimpleUploadedFile(
+            "not_allowed.txt",
+            b"plain-text-content",
+            content_type="text/plain",
+        )
+
+        response = self.client.post(
+            "/api/student/reports/upload/",
+            {"file": uploaded_file},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unsupported file type", response.data["detail"])
 
     def test_supervisor_appraisal_endpoints_only_expose_assigned_students_and_allow_crud(self):
         supervisor_user, supervisor = self.create_supervisor_user()
