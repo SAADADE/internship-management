@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Internship, Log, Report, Review, Student, Supervisor
+from .models import Appraisal, Internship, Log, Report, Review, Student, Supervisor
 
 
 class BackendApiTests(TestCase):
@@ -13,7 +13,7 @@ class BackendApiTests(TestCase):
         self.client = APIClient()
         self.user_model = get_user_model()
 
-    def create_student_user(self, username="student", email="student@example.com"):
+    def create_student_user(self, username="student", email="student@example.com", index_number=None):
         user = self.user_model.objects.create_user(
             username=username,
             email=email,
@@ -22,7 +22,7 @@ class BackendApiTests(TestCase):
         student = Student.objects.create(
             user=user,
             sch_email=email,
-            index_number="20240001",
+            index_number=index_number or f"IDX-{username.upper()}",
             first_name="Ada",
             last_name="Lovelace",
             faculty="Engineering",
@@ -33,6 +33,19 @@ class BackendApiTests(TestCase):
             phone_number="+233200000000",
         )
         return user, student
+
+    def create_supervisor_user(self, username="supervisor", email="supervisor@example.com"):
+        user = self.user_model.objects.create_user(
+            username=username,
+            email=email,
+            password="StrongPass123!",
+        )
+        supervisor = Supervisor.objects.create(
+            user=user,
+            fullname="Dr. Supervisor",
+            email=email,
+        )
+        return user, supervisor
 
     def test_student_registration_creates_user_and_profile(self):
         response = self.client.post(
@@ -238,8 +251,7 @@ class BackendApiTests(TestCase):
     def test_student_feedback_endpoint_returns_only_feedback_from_connected_supervisor(self):
         user, student = self.create_student_user()
         supervisor = Supervisor.objects.create(fullname="Dr. Theresa", email="theresa@example.com")
-        student.supervisor = supervisor
-        student.save(update_fields=["supervisor"])
+        student.supervisors.add(supervisor)
         self.client.force_authenticate(user)
 
         log = Log.objects.create(student=student, log_text="Week 1 update", status="submitted", week_number=1, log_date="2026-07-30")
@@ -255,6 +267,65 @@ class BackendApiTests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["supervisor"], "Dr. Theresa")
         self.assertEqual(response.data[0]["feedback"], "Great work")
+
+    def test_internship_registration_links_student_to_existing_supervisor_by_email(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+        supervisor = Supervisor.objects.create(fullname="Mr. Mensah", email="mensah@example.com")
+
+        response = self.client.post(
+            "/api/student/internships/",
+            {
+                "company_name": "ACME Corp",
+                "company_address": "Accra",
+                "internship_position": "Software Engineering",
+                "internship_supervisor": "Mr. Mensah",
+                "internship_supervisor_email": "mensah@example.com",
+                "internship_duration": "2026-07-01 to 2026-09-30",
+                "department": "IT Department",
+                "description": "Summer placement",
+                "start_date": "2026-07-01",
+                "end_date": "2026-09-30",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(student.supervisors.filter(pk=supervisor.pk).exists())
+
+    def test_supervisor_registration_links_matching_students_from_existing_internships(self):
+        student_user = self.user_model.objects.create_user(username="student-link", password="StrongPass123!")
+        student = Student.objects.create(
+            user=student_user,
+            sch_email="student-link@example.com",
+            index_number="20240003",
+            first_name="Kwame",
+            last_name="Nkrumah",
+        )
+        Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+            internship_supervisor="Mr. Mensah",
+            internship_supervisor_email="mensah@example.com",
+        )
+
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "first_name": "Kofi",
+                "last_name": "Mensah",
+                "email": "mensah@example.com",
+                "username": "mensah",
+                "password": "StrongPass123!",
+                "role": "supervisor",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        supervisor = Supervisor.objects.get(email="mensah@example.com")
+        self.assertTrue(student.supervisors.filter(pk=supervisor.pk).exists())
 
     def test_weekly_log_submission_links_selected_internship_and_saves_snapshot_fields(self):
         user, student = self.create_student_user()
@@ -346,3 +417,115 @@ class BackendApiTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         mock_generate.assert_called_once()
         mock_build.assert_called_once()
+
+    def test_supervisor_appraisal_endpoints_only_expose_assigned_students_and_allow_crud(self):
+        supervisor_user, supervisor = self.create_supervisor_user()
+        _, assigned_student = self.create_student_user(username="assigned-student", email="assigned@example.com")
+        _, other_student = self.create_student_user(username="other-student", email="other@example.com")
+        assigned_student.supervisors.add(supervisor)
+
+        self.client.force_authenticate(supervisor_user)
+
+        students_response = self.client.get("/api/supervisor/appraisal-students/")
+
+        self.assertEqual(students_response.status_code, 200)
+        self.assertEqual(len(students_response.data), 1)
+        self.assertEqual(students_response.data[0]["index"], assigned_student.index_number)
+        self.assertEqual(students_response.data[0]["status"], "Pending Appraisal")
+
+        create_response = self.client.post(
+            "/api/supervisor/appraisals/",
+            {
+                "student_id": str(assigned_student.student_id),
+                "scores": {
+                    "punctuality": "5",
+                    "attitude": "4",
+                    "superiors": "4",
+                    "colleagues": "5",
+                    "cooperation": "4",
+                    "safety": "5",
+                    "resourcefulness": "4",
+                    "initiative": "4",
+                    "leadership": "3",
+                },
+                "generalComments": "Consistently delivers quality work.",
+                "supervisorName": "Dr. Supervisor",
+                "position": "Industry Supervisor",
+                "signature": "signed-data",
+                "date": "2026-08-06",
+            },
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        appraisal = Appraisal.objects.get(student=assigned_student)
+        self.assertEqual(appraisal.supervisor, supervisor)
+        self.assertEqual(appraisal.general_comments, "Consistently delivers quality work.")
+
+        duplicate_response = self.client.post(
+            "/api/supervisor/appraisals/",
+            {
+                "student_id": str(assigned_student.student_id),
+                "scores": {
+                    "punctuality": "5",
+                    "attitude": "4",
+                    "superiors": "4",
+                    "colleagues": "5",
+                    "cooperation": "4",
+                    "safety": "5",
+                    "resourcefulness": "4",
+                    "initiative": "4",
+                    "leadership": "3",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(duplicate_response.status_code, 400)
+        self.assertEqual(Appraisal.objects.filter(student=assigned_student).count(), 1)
+
+        unassigned_response = self.client.post(
+            "/api/supervisor/appraisals/",
+            {
+                "student_id": str(other_student.student_id),
+                "scores": {
+                    "punctuality": "5",
+                    "attitude": "4",
+                    "superiors": "4",
+                    "colleagues": "5",
+                    "cooperation": "4",
+                    "safety": "5",
+                    "resourcefulness": "4",
+                    "initiative": "4",
+                    "leadership": "3",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(unassigned_response.status_code, 400)
+
+        list_response = self.client.get("/api/supervisor/appraisals/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(len(list_response.data), 1)
+        self.assertEqual(list_response.data[0]["studentId"], assigned_student.index_number)
+
+        patch_response = self.client.patch(
+            f"/api/supervisor/appraisals/{appraisal.appraisal_id}/",
+            {
+                "generalComments": "Updated assessment.",
+                "position": "Lead Supervisor",
+            },
+            format="json",
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+        appraisal.refresh_from_db()
+        self.assertEqual(appraisal.general_comments, "Updated assessment.")
+        self.assertEqual(appraisal.position, "Lead Supervisor")
+
+        delete_response = self.client.delete(f"/api/supervisor/appraisals/{appraisal.appraisal_id}/")
+
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(Appraisal.objects.filter(student=assigned_student).exists())

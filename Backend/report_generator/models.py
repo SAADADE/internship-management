@@ -13,7 +13,6 @@ class Student(models.Model):
         null=True,
         blank=True,
     )
-    teams_id = models.CharField(max_length=100, blank=True)
     sch_email = models.EmailField(unique=True)
     index_number = models.CharField(max_length=50, unique=True)
     first_name = models.CharField(max_length=100)
@@ -24,11 +23,9 @@ class Student(models.Model):
     level = models.CharField(max_length=10, blank=True)
     institution_name = models.CharField(max_length=255, blank=True)
     phone_number = models.CharField(max_length=50, blank=True)
-    supervisor = models.ForeignKey(
+    supervisors = models.ManyToManyField(
         "Supervisor",
-        on_delete=models.SET_NULL,
         related_name="students",
-        null=True,
         blank=True,
     )
     password_hash = models.TextField(default="")
@@ -53,6 +50,16 @@ class Student(models.Model):
     def university(self):
         return ""
 
+    def link_supervisor_by_email(self, email):
+        normalized_email = (email or "").strip()
+        if not normalized_email:
+            return None
+
+        supervisor = Supervisor.objects.filter(email__iexact=normalized_email).first()
+        if supervisor:
+            self.supervisors.add(supervisor)
+        return supervisor
+
     def __str__(self):
         return f"{self.first_name} {self.last_name}".strip() or self.sch_email
 
@@ -74,6 +81,18 @@ class Supervisor(models.Model):
     email = models.EmailField(unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def link_students_by_email(self):
+        normalized_email = (self.email or "").strip()
+        if not normalized_email:
+            return 0
+
+        students = Student.objects.filter(
+            internships__internship_supervisor_email__iexact=normalized_email
+        ).distinct()
+        for student in students:
+            student.supervisors.add(self)
+        return students.count()
 
     def __str__(self):
         return self.fullname or self.user.username or "Supervisor"
@@ -187,6 +206,7 @@ class Review(models.Model):
     )
     decision = models.CharField(max_length=20, choices=DECISION_CHOICES, blank=True)
     comment = models.TextField(blank=True)
+    score = models.PositiveSmallIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -203,6 +223,28 @@ class Review(models.Model):
 
 
 LogFeedback = Review
+
+
+class Appraisal(models.Model):
+    appraisal_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name="appraisal")
+    supervisor = models.ForeignKey(
+        Supervisor,
+        on_delete=models.PROTECT,
+        related_name="appraisals",
+    )
+    scores = models.JSONField(default=dict, blank=True)
+    general_comments = models.TextField(blank=True)
+    supervisor_name = models.CharField(max_length=150, blank=True)
+    position = models.CharField(max_length=150, blank=True)
+    signature = models.TextField(blank=True)
+    appraisal_date = models.DateField(null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Appraisal for {self.student}"
 
 
 class InternshipReportDraft(models.Model):

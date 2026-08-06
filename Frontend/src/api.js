@@ -121,8 +121,36 @@ export function getSupervisorStudents() {
   return apiRequest('/supervisor/students/')
 }
 
+export function getSupervisorAppraisalStudents() {
+  return apiRequest('/supervisor/appraisal-students/')
+}
+
+export function getSupervisorAppraisals() {
+  return apiRequest('/supervisor/appraisals/')
+}
+
+export function createSupervisorAppraisal(payload) {
+  return apiRequest('/supervisor/appraisals/', { method: 'POST', body: payload })
+}
+
+export function updateSupervisorAppraisal(appraisalId, payload) {
+  return apiRequest(`/supervisor/appraisals/${appraisalId}/`, { method: 'PATCH', body: payload })
+}
+
+export function deleteSupervisorAppraisal(appraisalId) {
+  return apiRequest(`/supervisor/appraisals/${appraisalId}/`, { method: 'DELETE', parseJson: false })
+}
+
 export function getSupervisorLogs() {
   return apiRequest('/supervisor/logs/')
+}
+
+export function getSupervisorReports() {
+  return apiRequest('/supervisor/reports/')
+}
+
+export function getSupervisorLog(logId) {
+  return apiRequest(`/supervisor/logs/${logId}/`)
 }
 
 export function updateSupervisorLog(logId, payload) {

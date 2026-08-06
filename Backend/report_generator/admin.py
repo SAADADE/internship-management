@@ -5,8 +5,13 @@ from .models import Internship, InternshipReportDraft, Log, Report, Review, Stud
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("sch_email", "index_number", "first_name", "last_name", "department", "programme", "supervisor", "created_at")
+    list_display = ("sch_email", "index_number", "first_name", "last_name", "department", "programme", "supervisor_list", "created_at")
     search_fields = ("sch_email", "index_number", "first_name", "last_name", "department", "programme")
+
+    def supervisor_list(self, obj):
+        return ", ".join(obj.supervisors.values_list("fullname", flat=True))
+
+    supervisor_list.short_description = "Supervisors"
 
 
 @admin.register(Supervisor)

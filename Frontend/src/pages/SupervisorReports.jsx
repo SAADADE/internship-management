@@ -1,107 +1,56 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FileText, Search, Filter, CheckCircle, Clock, AlertCircle, Eye } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-
-const REPORTS_DATA = [
-  {
-    id: 1,
-    title: 'Week 1 - Onboarding & Setup',
-    studentName: 'Peter Nyarko',
-    studentId: 'CS/0420/20',
-    reportWeek: 'Week 1',
-    submissionDate: '2026-03-15',
-    dueDate: '2026-03-17',
-    status: 'reviewed',
-    rating: 5,
-    company: 'Tech Innovation Ltd',
-    feedback: 'Excellent work!'
-  },
-  {
-    id: 2,
-    title: 'Week 2 - Project Implementation',
-    studentName: 'Carl Tsidi',
-    studentId: 'CS/0421/20',
-    reportWeek: 'Week 2',
-    submissionDate: '2026-03-10',
-    dueDate: '2026-03-17',
-    status: 'pending',
-    rating: 0,
-    company: 'Digital Solutions Inc',
-    feedback: null
-  },
-  {
-    id: 3,
-    title: 'Week 1 - Onboarding & Setup',
-    studentName: 'Tettey Ara Dede',
-    studentId: 'CS/0422/20',
-    reportWeek: 'Week 1',
-    submissionDate: '2026-03-14',
-    dueDate: '2026-03-17',
-    status: 'reviewed',
-    rating: 4,
-    company: 'Cloud Services Ltd',
-    feedback: 'Good progress'
-  },
-  {
-    id: 4,
-    title: 'Week 2 - Project Implementation',
-    studentName: 'Yaa Asantewaa',
-    studentId: 'CS/0423/20',
-    reportWeek: 'Week 2',
-    submissionDate: '2026-03-12',
-    dueDate: '2026-03-17',
-    status: 'pending',
-    rating: 0,
-    company: 'Enterprise Solutions',
-    feedback: null
-  },
-  {
-    id: 5,
-    title: 'Week 3 - System Testing',
-    studentName: 'Nana Ama Osei',
-    studentId: 'CS/0424/20',
-    reportWeek: 'Week 3',
-    submissionDate: '2026-03-18',
-    dueDate: '2026-03-17',
-    status: 'late',
-    rating: 3,
-    company: 'Tech Innovations',
-    feedback: 'Needs improvement on documentation'
-  },
-  {
-    id: 6,
-    title: 'Week 1 - Onboarding & Setup',
-    studentName: 'Efua Mensah',
-    studentId: 'CS/0425/20',
-    reportWeek: 'Week 1',
-    submissionDate: '2024-03-13',
-    dueDate: '2024-03-17',
-    status: 'reviewed',
-    rating: 5,
-    company: 'Tullow Oil Ghana',
-    feedback: 'Outstanding submission!'
-  }
-]
+import { getSupervisorReports } from '../api'
 
 export default function SupervisorReports() {
-  const { user } = useAuth()
   const navigate = useNavigate()
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterWeek, setFilterWeek] = useState('all')
 
-  const filteredReports = REPORTS_DATA.filter(report => {
-    const matchesSearch =
-      report.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.title.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    let active = true
 
-    const matchesStatus = filterStatus === 'all' || report.status === filterStatus
-    const matchesWeek = filterWeek === 'all' || report.reportWeek === filterWeek
+    async function loadReports() {
+      setLoading(true)
+      setError('')
+      try {
+        const response = await getSupervisorReports()
+        if (!active) return
+        setReports(Array.isArray(response) ? response : [])
+      } catch (err) {
+        if (!active) return
+        setError(err?.message || 'Unable to fetch reports.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
 
-    return matchesSearch && matchesStatus && matchesWeek
-  })
+    loadReports()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      const query = searchTerm.toLowerCase().trim()
+      const matchesSearch =
+        !query ||
+        report.studentName.toLowerCase().includes(query) ||
+        report.studentId.toLowerCase().includes(query) ||
+        report.title.toLowerCase().includes(query)
+
+      const matchesStatus = filterStatus === 'all' || report.status === filterStatus
+      const matchesWeek = filterWeek === 'all' || report.reportWeek === filterWeek
+
+      return matchesSearch && matchesStatus && matchesWeek
+    })
+  }, [reports, searchTerm, filterStatus, filterWeek])
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -109,6 +58,8 @@ export default function SupervisorReports() {
         return <span className="badge-success">Reviewed</span>
       case 'pending':
         return <span className="badge-warning">Pending Review</span>
+      case 'needs_revision':
+        return <span className="badge-error">Needs Revision</span>
       case 'late':
         return <span className="badge-error">Late Submission</span>
       default:
@@ -122,6 +73,8 @@ export default function SupervisorReports() {
         return <CheckCircle size={16} className="text-emerald-600" />
       case 'pending':
         return <Clock size={16} className="text-amber-600" />
+      case 'needs_revision':
+        return <AlertCircle size={16} className="text-red-600" />
       case 'late':
         return <AlertCircle size={16} className="text-red-600" />
       default:
@@ -131,9 +84,17 @@ export default function SupervisorReports() {
 
   const isOverdue = (dueDate) => new Date(dueDate) < new Date()
 
-  const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8']
-  const pendingCount = REPORTS_DATA.filter(r => r.status === 'pending').length
-  const reviewedCount = REPORTS_DATA.filter(r => r.status === 'reviewed').length
+  const weeks = useMemo(() => {
+    const weekSet = new Set(reports.map((item) => item.reportWeek).filter(Boolean))
+    return Array.from(weekSet).sort((a, b) => {
+      const aNum = Number((a || '').replace(/[^0-9]/g, '')) || 0
+      const bNum = Number((b || '').replace(/[^0-9]/g, '')) || 0
+      return aNum - bNum
+    })
+  }, [reports])
+
+  const pendingCount = reports.filter((r) => r.status === 'pending').length
+  const reviewedCount = reports.filter((r) => r.status === 'reviewed').length
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -169,7 +130,7 @@ export default function SupervisorReports() {
           </div>
 
           <div className="flex gap-2">
-            {['all', 'pending', 'reviewed', 'late'].map(status => (
+            {['all', 'pending', 'reviewed', 'needs_revision', 'late'].map(status => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
@@ -179,7 +140,7 @@ export default function SupervisorReports() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {status === 'all' ? 'All Status' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'all' ? 'All Status' : status === 'needs_revision' ? 'Needs Revision' : status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
           </div>
@@ -204,7 +165,15 @@ export default function SupervisorReports() {
 
       {/* Reports Table */}
       <div className="card overflow-hidden">
-        {filteredReports.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-500 font-medium">Loading reports...</p>
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center">
+            <p className="text-red-500 font-medium">{error}</p>
+          </div>
+        ) : filteredReports.length === 0 ? (
           <div className="p-12 text-center">
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 font-medium">No reports found</p>
@@ -260,7 +229,7 @@ export default function SupervisorReports() {
                     </div>
                   </td>
                   <td className="table-cell text-center">
-                    {report.status === 'pending' ? (
+                    {report.status === 'pending' || report.status === 'late' ? (
                       <span className="text-xs text-gray-400">—</span>
                     ) : (
                       <div className="flex items-center justify-center gap-1">
@@ -293,7 +262,7 @@ export default function SupervisorReports() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 font-medium">Total Reports</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{REPORTS_DATA.length}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{reports.length}</p>
             </div>
             <FileText size={32} className="text-primary-200" />
           </div>

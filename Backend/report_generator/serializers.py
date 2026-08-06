@@ -1,7 +1,21 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from django.utils import timezone
 
-from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
+from .models import Appraisal, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
+
+
+APPRAISAL_SCORE_LABELS = {
+    "punctuality": "1. Punctuality at Work",
+    "attitude": "2. Ability on the Job / Attitude to Work",
+    "superiors": "3. Relationship with Superiors",
+    "colleagues": "4. Relationship with Colleagues",
+    "cooperation": "5. Cooperation",
+    "safety": "6. Safety Consciousness",
+    "resourcefulness": "7. Resourcefulness",
+    "initiative": "8. Initiative",
+    "leadership": "9. Leadership Drive",
+}
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
@@ -9,14 +23,19 @@ class StudentProfileSerializer(serializers.ModelSerializer):
     sch_email = serializers.EmailField(required=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
-    supervisor_name = serializers.CharField(source="supervisor.fullname", read_only=True)
+    supervisors = serializers.SerializerMethodField()
+
+    def get_supervisors(self, obj):
+        return [
+            {"id": supervisor.supervisor_id, "fullname": supervisor.fullname, "email": supervisor.email}
+            for supervisor in obj.supervisors.all().order_by("fullname")
+        ]
 
     class Meta:
         model = StudentProfile
         fields = [
             "id",
             "user",
-            "teams_id",
             "sch_email",
             "index_number",
             "first_name",
@@ -27,12 +46,11 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "level",
             "institution_name",
             "phone_number",
-            "supervisor",
-            "supervisor_name",
+            "supervisors",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user", "supervisor_name", "created_at", "updated_at"]
+        read_only_fields = ["id", "user", "supervisors", "created_at", "updated_at"]
 
 
 class UserRegistrationSerializer(serializers.Serializer):
@@ -56,8 +74,9 @@ class UserRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError({"username": "A user with that username already exists."})
         if user_model.objects.filter(email__iexact=attrs["email"]).exists():
             raise serializers.ValidationError({"email": "A user with that email already exists."})
-        if attrs.get("role") == "student" and not attrs.get("index_number"):
-            raise serializers.ValidationError({"index_number": "Index number is required for students."})
+        if attrs.get("role") == "student":
+            if not attrs.get("index_number"):
+                raise serializers.ValidationError({"index_number": "Index number is required for students."})
         return attrs
 
 
@@ -106,7 +125,7 @@ class LogFeedbackSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LogFeedback
-        fields = ["id", "decision", "comment", "supervisor_name", "created_at", "updated_at"]
+        fields = ["id", "decision", "comment", "score", "supervisor_name", "created_at", "updated_at"]
         read_only_fields = ["id", "supervisor_name", "created_at", "updated_at"]
 
 
@@ -173,6 +192,8 @@ class StudentFeedbackSerializer(serializers.ModelSerializer):
         return obj.created_at.date().isoformat()
 
     def get_rating(self, obj):
+        if obj.score is not None:
+            return max(1, min(5, round(obj.score / 20)))
         return 5 if obj.decision == "approved" else 3
 
     def get_status(self, obj):
@@ -266,9 +287,238 @@ class DailyLogSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class SupervisorReportSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="log_id", read_only=True)
+    title = serializers.SerializerMethodField()
+    studentName = serializers.SerializerMethodField()
+    studentId = serializers.SerializerMethodField()
+    reportWeek = serializers.SerializerMethodField()
+    submissionDate = serializers.SerializerMethodField()
+    dueDate = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    company = serializers.SerializerMethodField()
+    feedback = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DailyLog
+        fields = [
+            "id",
+            "title",
+            "studentName",
+            "studentId",
+            "reportWeek",
+            "submissionDate",
+            "dueDate",
+            "status",
+            "rating",
+            "company",
+            "feedback",
+        ]
+
+    def _submission_date(self, obj):
+        return obj.log_date or obj.created_at.date()
+
+    def _due_date(self, obj):
+        if obj.end_date:
+            return obj.end_date
+        submission_date = self._submission_date(obj)
+        return submission_date + timezone.timedelta(days=7)
+
+    def get_title(self, obj):
+        week_number = obj.week_number or 1
+        return f"Week {week_number} - Weekly Log Sheet"
+
+    def get_studentName(self, obj):
+        if obj.student_name:
+            return obj.student_name
+        return f"{obj.student.first_name} {obj.student.last_name}".strip() or obj.student.sch_email
+
+    def get_studentId(self, obj):
+        return obj.student_index_number or obj.student.index_number
+
+    def get_reportWeek(self, obj):
+        week_number = obj.week_number or 1
+        return f"Week {week_number}"
+
+    def get_submissionDate(self, obj):
+        return self._submission_date(obj).isoformat()
+
+    def get_dueDate(self, obj):
+        return self._due_date(obj).isoformat()
+
+    def get_status(self, obj):
+        if obj.status == "reviewed":
+            return "reviewed"
+        if obj.status == "needs_revision":
+            return "needs_revision"
+
+        is_late = timezone.now().date() > self._due_date(obj)
+        return "late" if is_late else "pending"
+
+    def get_rating(self, obj):
+        if not hasattr(obj, "feedback") or obj.feedback is None:
+            return 0
+        if obj.feedback.score is not None:
+            return max(1, min(5, round(obj.feedback.score / 20)))
+        return 5 if obj.feedback.decision == "approved" else 3
+
+    def get_company(self, obj):
+        return obj.company_name or (obj.internship.company_name if obj.internship else "")
+
+    def get_feedback(self, obj):
+        if not hasattr(obj, "feedback") or obj.feedback is None:
+            return None
+        return obj.feedback.comment or None
+
+
 class SupervisorLogUpdateSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=["approved", "rejected"])
     comment = serializers.CharField(required=False, allow_blank=True, default="")
+    score = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=100)
+
+
+class AppraisalSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="appraisal_id", read_only=True)
+    student = serializers.UUIDField(source="student.student_id", read_only=True)
+    student_id = serializers.UUIDField(write_only=True, required=True)
+    studentName = serializers.SerializerMethodField()
+    studentId = serializers.SerializerMethodField()
+    department = serializers.SerializerMethodField()
+    supervisorName = serializers.CharField(source="supervisor_name", required=False, allow_blank=True)
+    generalComments = serializers.CharField(source="general_comments", required=False, allow_blank=True)
+    date = serializers.DateField(source="appraisal_date", required=False, allow_null=True)
+    submittedOn = serializers.DateTimeField(source="submitted_at", read_only=True)
+    status = serializers.SerializerMethodField()
+    criteria = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Appraisal
+        fields = [
+            "id",
+            "student",
+            "student_id",
+            "studentName",
+            "studentId",
+            "department",
+            "scores",
+            "criteria",
+            "generalComments",
+            "supervisorName",
+            "position",
+            "signature",
+            "date",
+            "submittedOn",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "student",
+            "studentName",
+            "studentId",
+            "department",
+            "criteria",
+            "submittedOn",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_studentName(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip() or obj.student.sch_email
+
+    def get_studentId(self, obj):
+        return obj.student.index_number
+
+    def get_department(self, obj):
+        return obj.student.department
+
+    def get_status(self, obj):
+        return "Appraised"
+
+    def get_criteria(self, obj):
+        return [
+            {"key": key, "label": label, "score": obj.scores.get(key, "")}
+            for key, label in APPRAISAL_SCORE_LABELS.items()
+        ]
+
+    def validate_scores(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Scores must be an object keyed by appraisal criteria.")
+
+        missing_keys = [key for key in APPRAISAL_SCORE_LABELS if str(value.get(key, "")).strip() == ""]
+        if missing_keys:
+            raise serializers.ValidationError({"missing": missing_keys})
+
+        normalized_scores = {}
+        for key in APPRAISAL_SCORE_LABELS:
+            score = str(value[key]).strip()
+            if score not in {"1", "2", "3", "4", "5"}:
+                raise serializers.ValidationError(f"Invalid score '{score}' for {key}.")
+            normalized_scores[key] = score
+        return normalized_scores
+
+    def validate_student_id(self, value):
+        request = self.context.get("request")
+        supervisor = getattr(getattr(request, "user", None), "supervisor", None)
+        student = StudentProfile.objects.filter(student_id=value).first()
+
+        if not student:
+            raise serializers.ValidationError("Student not found.")
+        if not supervisor or not student.supervisors.filter(pk=supervisor.pk).exists():
+            raise serializers.ValidationError("You can only appraise students assigned to you.")
+
+        existing_appraisal = getattr(student, "appraisal", None)
+        if existing_appraisal and self.instance is None:
+            raise serializers.ValidationError("This student has already been appraised.")
+        if existing_appraisal and self.instance and existing_appraisal.pk != self.instance.pk:
+            raise serializers.ValidationError("This student has already been appraised.")
+
+        self.context["appraisal_student"] = student
+        return value
+
+    def validate(self, attrs):
+        if self.instance is not None and "student_id" in attrs:
+            attrs.pop("student_id", None)
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("student_id", None)
+        student = self.context["appraisal_student"]
+        supervisor = self.context["request"].user.supervisor
+        return Appraisal.objects.create(student=student, supervisor=supervisor, **validated_data)
+
+
+class SupervisorAssignedStudentSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="student_id", read_only=True)
+    name = serializers.SerializerMethodField()
+    index = serializers.CharField(source="index_number", read_only=True)
+    status = serializers.SerializerMethodField()
+    canAppraise = serializers.SerializerMethodField()
+    appraisal = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StudentProfile
+        fields = ["id", "name", "index", "department", "status", "canAppraise", "appraisal"]
+
+    def get_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}".strip() or obj.sch_email
+
+    def get_status(self, obj):
+        return "Appraised" if hasattr(obj, "appraisal") else "Pending Appraisal"
+
+    def get_canAppraise(self, obj):
+        supervisor = self.context["request"].user.supervisor
+        appraisal = getattr(obj, "appraisal", None)
+        return appraisal is None or appraisal.supervisor_id == supervisor.pk
+
+    def get_appraisal(self, obj):
+        appraisal = getattr(obj, "appraisal", None)
+        if appraisal is None:
+            return None
+        return AppraisalSerializer(appraisal, context=self.context).data
 
 
 class InternshipReportDraftSerializer(serializers.ModelSerializer):

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, Save } from 'lucide-react'
-import { getStoredProfile, saveAppraisal } from '../utils/storage'
+import { ArrowLeft, CheckCircle, Save, Trash2 } from 'lucide-react'
+import {
+  createSupervisorAppraisal,
+  deleteSupervisorAppraisal,
+  getSupervisorAppraisalStudents,
+  updateSupervisorAppraisal,
+} from '../api'
+import { getStoredProfile } from '../utils/storage'
 
 const criteria = [
   { key: 'punctuality', label: '1. Punctuality at Work' },
@@ -15,12 +21,6 @@ const criteria = [
   { key: 'leadership', label: '9. Leadership Drive' }
 ]
 
-const students = [
-  { id: 1, name: 'Peter Nyarko', index: 'CS/0241/19', department: 'Computer Science', status: 'Pending Appraisal' },
-  { id: 2, name: 'Mawuli Boateng', index: 'IT/0112/20', department: 'Information Technology', status: 'Pending Appraisal' },
-  { id: 3, name: 'Grace Adjei', index: 'CS/0187/20', department: 'Computer Science', status: 'Appraised' }
-]
-
 const ratingOptions = [
   { value: '5', label: 'Excellent (5)' },
   { value: '4', label: 'Very Good (4)' },
@@ -31,6 +31,9 @@ const ratingOptions = [
 
 export default function InternAppraisal() {
   const navigate = useNavigate()
+  const [students, setStudents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [profile, setProfile] = useState(getStoredProfile())
   const [scores, setScores] = useState({})
@@ -40,18 +43,99 @@ export default function InternAppraisal() {
   const [signature, setSignature] = useState('')
   const [date, setDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [saved, setSaved] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submittedMessage, setSubmittedMessage] = useState('')
   const canvasRef = useRef(null)
   const isDrawingRef = useRef(false)
+
+  const getDefaultSupervisorName = (storedProfile) => (
+    storedProfile?.fullname
+    || `${storedProfile?.firstName || storedProfile?.first_name || ''} ${storedProfile?.lastName || storedProfile?.last_name || ''}`.trim()
+    || 'Supervisor'
+  )
+
+  const getDefaultPosition = (storedProfile) => storedProfile?.supervisorRole || storedProfile?.position || 'Supervisor'
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+
+    if (!canvas || !context) return
+
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    const width = Math.max(1, Math.round(rect.width))
+    const height = Math.max(1, Math.round(rect.height))
+
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+    context.clearRect(0, 0, width, height)
+    context.lineCap = 'round'
+    context.lineJoin = 'round'
+    context.lineWidth = 2
+    context.strokeStyle = '#111827'
+  }
+
+  const applyStudentToForm = (student, fallbackProfile = profile) => {
+    setSelectedStudent(student)
+
+    const appraisal = student?.appraisal
+    const fallbackDate = new Date().toISOString().slice(0, 10)
+
+    setScores(appraisal?.scores || {})
+    setGeneralComments(appraisal?.generalComments || '')
+    setSupervisorName(appraisal?.supervisorName || getDefaultSupervisorName(fallbackProfile))
+    setPosition(appraisal?.position || getDefaultPosition(fallbackProfile))
+    setSignature(appraisal?.signature || '')
+    setDate(appraisal?.date || fallbackDate)
+  }
+
+  const resetForm = (fallbackProfile = profile) => {
+    setSelectedStudent(null)
+    setScores({})
+    setGeneralComments('')
+    setSupervisorName(getDefaultSupervisorName(fallbackProfile))
+    setPosition(getDefaultPosition(fallbackProfile))
+    setSignature('')
+    setDate(new Date().toISOString().slice(0, 10))
+    clearCanvas()
+  }
+
+  const loadStudents = async (studentToKeepSelectedId = null) => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const data = await getSupervisorAppraisalStudents()
+      setStudents(data)
+
+      const nextSelectedStudent = studentToKeepSelectedId
+        ? data.find((student) => student.id === studentToKeepSelectedId)
+        : null
+
+      if (nextSelectedStudent) {
+        applyStudentToForm(nextSelectedStudent)
+      } else if (studentToKeepSelectedId) {
+        resetForm()
+      }
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load assigned students.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     const storedProfile = getStoredProfile()
     if (storedProfile) {
       setProfile(storedProfile)
-      setSupervisorName(`${storedProfile.firstName || ''} ${storedProfile.lastName || ''}`.trim())
-      setPosition(storedProfile.supervisorRole || 'Supervisor')
+      setSupervisorName(getDefaultSupervisorName(storedProfile))
+      setPosition(getDefaultPosition(storedProfile))
     }
+    setDate(new Date().toISOString().slice(0, 10))
 
     const resizeCanvas = () => {
       const canvas = canvasRef.current
@@ -80,8 +164,28 @@ export default function InternAppraisal() {
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
+    loadStudents()
+
     return () => window.removeEventListener('resize', resizeCanvas)
   }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+
+    if (!canvas || !context) return
+
+    clearCanvas()
+
+    if (!signature) return
+
+    const image = new window.Image()
+    image.onload = () => {
+      const rect = canvas.getBoundingClientRect()
+      context.drawImage(image, 0, 0, rect.width, rect.height)
+    }
+    image.src = signature
+  }, [signature])
 
   const getCanvasPoint = (event) => {
     const canvas = canvasRef.current
@@ -130,24 +234,7 @@ export default function InternAppraisal() {
   }
 
   const clearSignature = () => {
-    const canvas = canvasRef.current
-    const context = canvas?.getContext('2d')
-
-    if (!canvas || !context) return
-
-    const rect = canvas.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    const width = Math.max(1, Math.round(rect.width))
-    const height = Math.max(1, Math.round(rect.height))
-
-    canvas.width = width * dpr
-    canvas.height = height * dpr
-    context.setTransform(dpr, 0, 0, dpr, 0, 0)
-    context.clearRect(0, 0, width, height)
-    context.lineCap = 'round'
-    context.lineJoin = 'round'
-    context.lineWidth = 2
-    context.strokeStyle = '#111827'
+    clearCanvas()
     setSignature('')
   }
 
@@ -160,29 +247,64 @@ export default function InternAppraisal() {
     if (missing) return alert('Please complete all evaluation criteria before submitting.')
     if (!generalComments.trim()) return alert('Please add general comments before submitting.')
     if (!signature) return alert('Please sign in the designated area before submitting.')
+    if (!selectedStudent) return alert('Please choose a student to appraise.')
 
     setSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    saveAppraisal({
-      id: Date.now(),
-      studentName: selectedStudent?.name,
-      studentId: selectedStudent?.index,
-      department: selectedStudent?.department,
-      supervisorName: supervisorName || profile?.firstName || 'Supervisor',
-      position: position || profile?.supervisorRole || 'Supervisor',
-      submittedOn: new Date().toISOString(),
-      signature: signature || 'Signed',
-      criteria: criteria.map((criterion) => ({ ...criterion, score: scores[criterion.key] })),
-      generalComments,
-    })
-    setSubmitting(false)
-    setSubmitted(true)
+    setError('')
+
+    try {
+      const payload = {
+        student_id: selectedStudent.id,
+        scores,
+        generalComments: generalComments.trim(),
+        supervisorName: supervisorName.trim() || getDefaultSupervisorName(profile),
+        position: position.trim() || getDefaultPosition(profile),
+        signature,
+        date,
+      }
+
+      const existingAppraisalId = selectedStudent.appraisal?.id
+      const savedAppraisal = existingAppraisalId
+        ? await updateSupervisorAppraisal(existingAppraisalId, payload)
+        : await createSupervisorAppraisal(payload)
+
+      setSubmittedMessage(existingAppraisalId ? 'The supervisor appraisal has been updated successfully.' : 'The supervisor appraisal has been recorded successfully.')
+      setSubmitted(true)
+      await loadStudents(selectedStudent.id)
+      setSelectedStudent((previous) => (previous ? { ...previous, appraisal: savedAppraisal, status: 'Appraised' } : previous))
+    } catch (submitError) {
+      setError(submitError.message || 'Unable to submit the appraisal.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleSaveDraft = async () => {
     setSaved(true)
     await new Promise((resolve) => setTimeout(resolve, 800))
     setSaved(false)
+  }
+
+  const handleDelete = async () => {
+    const appraisalId = selectedStudent?.appraisal?.id
+    if (!appraisalId) return
+
+    const confirmed = window.confirm(`Delete the appraisal for ${selectedStudent.name}?`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    setError('')
+
+    try {
+      await deleteSupervisorAppraisal(appraisalId)
+      setSubmitted(false)
+      setSubmittedMessage('')
+      await loadStudents(selectedStudent.id)
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to delete the appraisal.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   if (submitted) {
@@ -193,7 +315,7 @@ export default function InternAppraisal() {
         </div>
         <h2 className="font-heading text-xl font-bold text-gray-900 mb-2">Final Appraisal Submitted ✅</h2>
         <p className="text-gray-500 text-sm mb-6">
-          The supervisor appraisal has been recorded successfully.
+          {submittedMessage || 'The supervisor appraisal has been recorded successfully.'}
         </p>
         <button onClick={() => navigate('/supervisor')} className="btn-primary">
           ← Back to Dashboard
@@ -220,6 +342,20 @@ export default function InternAppraisal() {
       <div className="card p-8 space-y-8">
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-800">Students</h2>
+          {error && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
+          {loading ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+              Loading assigned students...
+            </div>
+          ) : students.length === 0 ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+              No students are currently assigned to you for appraisal.
+            </div>
+          ) : (
           <div className="space-y-3">
             {students.map((student) => (
               <div key={student.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4">
@@ -232,15 +368,16 @@ export default function InternAppraisal() {
                     {student.status}
                   </span>
                   <button
-                    onClick={() => setSelectedStudent(student)}
+                    onClick={() => applyStudentToForm(student)}
                     className="btn-secondary px-4 py-2"
                   >
-                    Appraise
+                    {student.appraisal ? 'Edit' : 'Appraise'}
                   </button>
                 </div>
               </div>
             ))}
           </div>
+          )}
         </section>
 
         {selectedStudent && (
@@ -249,9 +386,11 @@ export default function InternAppraisal() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">Appraisal Form</h2>
-                  <p className="text-sm text-gray-500">Evaluating {selectedStudent.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {selectedStudent.appraisal ? `Editing appraisal for ${selectedStudent.name}` : `Evaluating ${selectedStudent.name}`}
+                  </p>
                 </div>
-                <button onClick={() => setSelectedStudent(null)} className="text-sm text-primary-600 hover:text-primary-700">
+                <button onClick={() => resetForm()} className="text-sm text-primary-600 hover:text-primary-700">
                   Change Student
                 </button>
               </div>
@@ -366,6 +505,12 @@ export default function InternAppraisal() {
                   </span>
                 )}
               </button>
+              {selectedStudent.appraisal && (
+                <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Trash2 size={14} />
+                  {deleting ? 'Deleting…' : 'Delete Appraisal'}
+                </button>
+              )}
               <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
                 {submitting ? (
                   <span className="flex items-center gap-2">
@@ -373,7 +518,7 @@ export default function InternAppraisal() {
                     Submitting…
                   </span>
                 ) : (
-                  <span>Submit Final Appraisal</span>
+                  <span>{selectedStudent.appraisal ? 'Update Appraisal' : 'Submit Final Appraisal'}</span>
                 )}
               </button>
             </div>

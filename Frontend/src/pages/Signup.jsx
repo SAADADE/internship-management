@@ -28,8 +28,6 @@ const initialFormState = {
   confirmPassword: '',
   role: 'student',
   institution: '',
-  supervisorRole: '',
-  remember: false,
   terms: false,
   showPassword: false,
 }
@@ -47,7 +45,6 @@ const emptyErrors = {
   password: '',
   confirmPassword: '',
   institution: '',
-  supervisorRole: '',
   role: '',
   level: '',
   terms: '',
@@ -78,8 +75,6 @@ function validateField(name, value, compareValue = '') {
       return trimmed ? '' : 'Student ID is required.'
     case 'institution':
       return trimmed ? '' : 'Institution name is required.'
-    case 'supervisorRole':
-      return trimmed ? '' : 'Please select your role title.'
     case 'email':
       if (!trimmed) return 'Email address is required.'
       return validateEmail(trimmed) ? '' : 'Enter a valid email address.'
@@ -123,19 +118,16 @@ export default function Signup() {
   const handleFieldChange = (event) => {
     const { name, type, value, checked } = event.target
     const fieldValue = type === 'checkbox' ? checked : value
-    setFormData((current) => ({ ...current, [name]: fieldValue }))
+    const nextFormData = { ...formData, [name]: fieldValue }
 
+    setFormData(nextFormData)
     setErrors((current) => ({
       ...current,
-      [name]: validateField(name, fieldValue, name === 'confirmPassword' ? current.password : current.password),
+      [name]: validateField(name, fieldValue, name === 'confirmPassword' ? nextFormData.password : nextFormData.password),
+      ...(name === 'password' && nextFormData.confirmPassword
+        ? { confirmPassword: validateField('confirmPassword', nextFormData.confirmPassword, fieldValue) }
+        : {}),
     }))
-
-    if (name === 'password' && current.formData?.confirmPassword) {
-      setErrors((current) => ({
-        ...current,
-        confirmPassword: validateField('confirmPassword', current.formData.confirmPassword, fieldValue),
-      }))
-    }
   }
 
   const handleSubmit = async (event) => {
@@ -156,7 +148,6 @@ export default function Signup() {
       password: validateField('password', formData.password),
       confirmPassword: validateField('confirmPassword', formData.confirmPassword, formData.password),
       institution: validateField('institution', formData.institution),
-      supervisorRole: isSupervisor ? validateField('supervisorRole', formData.supervisorRole) : '',
       terms: validateField('terms', formData.terms),
     }
 
@@ -182,7 +173,6 @@ export default function Signup() {
         level: formData.level,
         institution_name: formData.institution || '',
         phone_number: formData.phone,
-        supervisor_role: formData.supervisorRole || '',
       })
       saveProfile({
         firstName: formData.firstName,
@@ -196,7 +186,6 @@ export default function Signup() {
         level: formData.level,
         institution: formData.institution,
         role: formData.role,
-        supervisorRole: formData.supervisorRole,
       })
       setSuccess('Your account was created successfully. You can now sign in.')
       setFormData(initialFormState)
@@ -321,7 +310,7 @@ export default function Signup() {
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                {!isSupervisor && (
+                {!isSupervisor ? (
                   <div>
                     <label htmlFor="studentId" className="form-label">Student ID</label>
                     <input
@@ -336,8 +325,26 @@ export default function Signup() {
                     />
                     {errors.studentId && <p className="mt-2 text-sm text-red-600">{errors.studentId}</p>}
                   </div>
+                ) : (
+                  <div>
+                    <label htmlFor="email" className="form-label">Email Address</label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, email: validateField('email', e.target.value) }))}
+                      className="form-input"
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                    />
+                    {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
+                  </div>
                 )}
+              </div>
 
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="email" className="form-label">Email Address</label>
                   <input
@@ -348,14 +355,12 @@ export default function Signup() {
                     onChange={handleFieldChange}
                     onBlur={(e) => setErrors((current) => ({ ...current, email: validateField('email', e.target.value) }))}
                     className="form-input"
-                    placeholder="you@university.edu.gh"
+                    placeholder={isSupervisor ? 'you@company.com' : 'you@university.edu.gh'}
                     autoComplete="email"
                   />
                   {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
                 </div>
-              </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="phone" className="form-label">Phone Number</label>
                   <input
@@ -370,6 +375,23 @@ export default function Signup() {
                     autoComplete="tel"
                   />
                   {errors.phone && <p className="mt-2 text-sm text-red-600">{errors.phone}</p>}
+                </div>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="institution" className="form-label">Institution</label>
+                  <input
+                    id="institution"
+                    name="institution"
+                    type="text"
+                    value={formData.institution}
+                    onChange={handleFieldChange}
+                    onBlur={(e) => setErrors((current) => ({ ...current, institution: validateField('institution', e.target.value) }))}
+                    className="form-input"
+                    placeholder="University of Ghana"
+                  />
+                  {errors.institution && <p className="mt-2 text-sm text-red-600">{errors.institution}</p>}
                 </div>
 
                 <div>
@@ -477,21 +499,6 @@ export default function Signup() {
                   </div>
                 )}
 
-                {isSupervisor && (
-                  <div>
-                    <label htmlFor="supervisorRole" className="form-label">Supervisor Title</label>
-                    <input
-                      id="supervisorRole"
-                      name="supervisorRole"
-                      type="text"
-                      value={formData.supervisorRole}
-                      onChange={handleFieldChange}
-                      onBlur={(e) => setErrors((current) => ({ ...current, supervisorRole: validateField('supervisorRole', e.target.value) }))}
-                      className="form-input"
-                    />
-                    {errors.supervisorRole && <p className="mt-2 text-sm text-red-600">{errors.supervisorRole}</p>}
-                  </div>
-                )}
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -573,18 +580,7 @@ export default function Signup() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 cursor-pointer transition hover:border-primary-300">
-                  <input
-                    type="checkbox"
-                    name="remember"
-                    checked={formData.remember}
-                    onChange={handleFieldChange}
-                    className="h-4 w-4 rounded accent-primary-600"
-                  />
-                  <span className="text-sm text-slate-600">Remember me</span>
-                </label>
-
+              <div className="flex items-start gap-3">
                 <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 cursor-pointer transition hover:border-primary-300">
                   <input
                     type="checkbox"

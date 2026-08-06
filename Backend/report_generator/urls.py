@@ -15,9 +15,13 @@ from .views import (
     StudentLogView,
     StudentProfileView,
     StudentReportDraftView,
+    SupervisorAppraisalDetailView,
+    SupervisorAppraisalListView,
+    SupervisorAssignedAppraisalStudentsView,
     SupervisorBulkStatusView,
     SupervisorLogDetailView,
     SupervisorLogsView,
+    SupervisorReportsView,
     SupervisorStudentsView,
 )
 
@@ -37,7 +41,11 @@ urlpatterns = [
     path("student/report-draft/", StudentReportDraftView.as_view(), name="student-report-draft"),
     path("student/generate-report/", StudentGenerateReportView.as_view(), name="student-generate-report"),
     path("supervisor/students/", SupervisorStudentsView.as_view(), name="supervisor-students"),
+    path("supervisor/appraisal-students/", SupervisorAssignedAppraisalStudentsView.as_view(), name="supervisor-appraisal-students"),
     path("supervisor/logs/", SupervisorLogsView.as_view(), name="supervisor-logs"),
+    path("supervisor/reports/", SupervisorReportsView.as_view(), name="supervisor-reports"),
     path("supervisor/logs/<uuid:log_id>/", SupervisorLogDetailView.as_view(), name="supervisor-log-detail"),
     path("supervisor/logs/bulk-status/", SupervisorBulkStatusView.as_view(), name="supervisor-bulk-status"),
+    path("supervisor/appraisals/", SupervisorAppraisalListView.as_view(), name="supervisor-appraisal-list"),
+    path("supervisor/appraisals/<uuid:appraisal_id>/", SupervisorAppraisalDetailView.as_view(), name="supervisor-appraisal-detail"),
 ]

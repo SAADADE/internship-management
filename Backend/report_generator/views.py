@@ -16,6 +16,15 @@ class IsStudentUser(IsAuthenticated):
         return getattr(request.user, "student", None) is not None
 
 
+class IsStudentProfileOwnerOrCreator(IsAuthenticated):
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        if getattr(request.user, "student", None) is not None:
+            return True
+        return request.method == "POST" and getattr(request.user, "supervisor", None) is None
+
+
 class IsSupervisorUser(IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
@@ -27,8 +36,9 @@ from rest_framework.views import APIView
 from .docx_builder import build_docx
 from .file_extractor import extract_text_from_file
 from .llm_service import generate_report_structure
-from .models import DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, SupervisorProfile
+from .models import Appraisal, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, SupervisorProfile
 from .serializers import (
+    AppraisalSerializer,
     AuthLoginSerializer,
     BulkStatusUpdateSerializer,
     DailyLogSerializer,
@@ -40,6 +50,8 @@ from .serializers import (
     StudentActivityItemSerializer,
     StudentFeedbackSerializer,
     StudentProfileSerializer,
+    SupervisorAssignedStudentSerializer,
+    SupervisorReportSerializer,
     SupervisorLogUpdateSerializer,
     UserRegistrationSerializer,
 )
@@ -134,6 +146,7 @@ class AuthRegisterView(APIView):
 
         if data["role"] == "supervisor":
             supervisor = SupervisorProfile.objects.create(user=user, fullname=f"{data['first_name']} {data['last_name']}".strip(), email=data["email"])
+            supervisor.link_students_by_email()
             profile_payload = {"fullname": supervisor.fullname, "email": supervisor.email}
         else:
             profile = StudentProfile.objects.create(
@@ -231,7 +244,7 @@ class ChangePasswordView(APIView):
 
 
 class StudentProfileView(APIView):
-    permission_classes = [IsStudentUser]
+    permission_classes = [IsStudentProfileOwnerOrCreator]
 
     def get(self, request):
         profile = StudentProfile.objects.get(user=request.user)
@@ -408,8 +421,9 @@ class StudentInternshipView(APIView):
         serializer = InternshipSerializer(data=payload)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        serializer.save(student=profile)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        internship = serializer.save(student=profile)
+        profile.link_supervisor_by_email(internship.internship_supervisor_email)
+        return Response(InternshipSerializer(internship).data, status=status.HTTP_201_CREATED)
 
 
 class StudentLogView(APIView):
@@ -473,7 +487,7 @@ class StudentFeedbackView(APIView):
 
     def get(self, request):
         profile = StudentProfile.objects.get(user=request.user)
-        feedbacks = LogFeedback.objects.filter(log__student=profile, supervisor=profile.supervisor).order_by("-created_at")
+        feedbacks = LogFeedback.objects.filter(log__student=profile, supervisor__in=profile.supervisors.all()).order_by("-created_at")
         return Response(StudentFeedbackSerializer(feedbacks, many=True).data)
 
 
@@ -583,21 +597,55 @@ class SupervisorStudentsView(APIView):
         return Response(StudentProfileSerializer(students, many=True).data)
 
 
+class SupervisorAssignedAppraisalStudentsView(APIView):
+    permission_classes = [IsSupervisorUser]
+
+    def get(self, request):
+        supervisor = SupervisorProfile.objects.get(user=request.user)
+        students = supervisor.students.all().select_related("appraisal").order_by("first_name", "last_name")
+        return Response(SupervisorAssignedStudentSerializer(students, many=True, context={"request": request}).data)
+
+
 class SupervisorLogsView(APIView):
     permission_classes = [IsSupervisorUser]
 
     def get(self, request):
         supervisor = SupervisorProfile.objects.get(user=request.user)
-        logs = DailyLog.objects.filter(student__supervisor=supervisor).order_by("-log_date", "-created_at")
+        logs = DailyLog.objects.filter(student__supervisors=supervisor).distinct().order_by("-log_date", "-created_at")
         return Response(DailyLogSerializer(logs, many=True).data)
+
+
+class SupervisorReportsView(APIView):
+    permission_classes = [IsSupervisorUser]
+
+    def get(self, request):
+        supervisor = SupervisorProfile.objects.get(user=request.user)
+        logs = (
+            DailyLog.objects.filter(student__supervisors=supervisor)
+            .distinct()
+            .select_related("student", "internship", "feedback")
+            .order_by("-log_date", "-created_at")
+        )
+        return Response(SupervisorReportSerializer(logs, many=True).data)
 
 
 class SupervisorLogDetailView(APIView):
     permission_classes = [IsSupervisorUser]
 
+    def get(self, request, log_id):
+        supervisor = SupervisorProfile.objects.get(user=request.user)
+        log = (
+            DailyLog.objects.filter(student__supervisors=supervisor, log_id=log_id)
+            .select_related("feedback")
+            .first()
+        )
+        if not log:
+            return Response({"detail": "Log not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DailyLogSerializer(log).data)
+
     def patch(self, request, log_id):
         supervisor = SupervisorProfile.objects.get(user=request.user)
-        log = DailyLog.objects.filter(student__supervisor=supervisor, log_id=log_id).first()
+        log = DailyLog.objects.filter(student__supervisors=supervisor, log_id=log_id).first()
         if not log:
             return Response({"detail": "Log not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -611,6 +659,7 @@ class SupervisorLogDetailView(APIView):
                 "supervisor": supervisor,
                 "decision": serializer.validated_data["decision"],
                 "comment": serializer.validated_data.get("comment", ""),
+                "score": serializer.validated_data.get("score"),
             },
         )
 
@@ -626,7 +675,7 @@ class SupervisorBulkStatusView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        logs = DailyLog.objects.filter(student__supervisor=supervisor)
+        logs = DailyLog.objects.filter(student__supervisors=supervisor).distinct()
         decision = serializer.validated_data["decision"]
         comment = serializer.validated_data.get("comment", "")
 
@@ -641,3 +690,45 @@ class SupervisorBulkStatusView(APIView):
             )
 
         return Response({"updated": logs.count(), "decision": decision})
+
+
+class SupervisorAppraisalListView(APIView):
+    permission_classes = [IsSupervisorUser]
+
+    def get(self, request):
+        supervisor = SupervisorProfile.objects.get(user=request.user)
+        appraisals = Appraisal.objects.filter(supervisor=supervisor).select_related("student").order_by("-submitted_at", "-created_at")
+        return Response(AppraisalSerializer(appraisals, many=True, context={"request": request}).data)
+
+    def post(self, request):
+        serializer = AppraisalSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        appraisal = serializer.save()
+        return Response(AppraisalSerializer(appraisal, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class SupervisorAppraisalDetailView(APIView):
+    permission_classes = [IsSupervisorUser]
+
+    def _get_appraisal(self, request, appraisal_id):
+        supervisor = SupervisorProfile.objects.get(user=request.user)
+        return Appraisal.objects.filter(appraisal_id=appraisal_id, supervisor=supervisor).select_related("student").first()
+
+    def patch(self, request, appraisal_id):
+        appraisal = self._get_appraisal(request, appraisal_id)
+        if not appraisal:
+            return Response({"detail": "Appraisal not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AppraisalSerializer(appraisal, data=request.data, partial=True, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, appraisal_id):
+        appraisal = self._get_appraisal(request, appraisal_id)
+        if not appraisal:
+            return Response({"detail": "Appraisal not found."}, status=status.HTTP_404_NOT_FOUND)
+        appraisal.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

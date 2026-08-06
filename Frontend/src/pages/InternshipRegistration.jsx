@@ -22,8 +22,8 @@ export default function InternshipRegistration() {
       setProfile(storedProfile)
       setForm((current) => ({
         ...current,
-        supervisorName: current.supervisorName || `${storedProfile.firstName || ''} ${storedProfile.lastName || ''}`.trim(),
-        supervisorEmail: current.supervisorEmail || storedProfile.email || '',
+        supervisorName: current.supervisorName,
+        supervisorEmail: current.supervisorEmail,
       }))
     }
   }, [])

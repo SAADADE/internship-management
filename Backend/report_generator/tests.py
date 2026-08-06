@@ -57,8 +57,7 @@ class InternshipWorkflowTests(TestCase):
             last_name="Hopper",
         )
         supervisor = Supervisor.objects.create(user=supervisor_user, fullname="Dr. Adams", email="supervisor@example.com")
-        student.supervisor = supervisor
-        student.save(update_fields=["supervisor"])
+        student.supervisors.add(supervisor)
 
         log = Log.objects.create(student=student, log_text="Reviewed code.", log_date="2026-06-21")
 

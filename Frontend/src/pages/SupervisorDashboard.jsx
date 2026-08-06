@@ -1,19 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StatsCard from '../components/StatsCard'
 import {
   Users, FileText, CheckCircle, Clock,
-  Search, Eye, ChevronRight, TrendingUp, AlertCircle
+  Search, Eye, ChevronRight, AlertCircle
 } from 'lucide-react'
-
-const STUDENTS = [
-  { id: 1, name: 'Peter Nyarko',   index: 'CS/0241/19', title: 'Weekly Log Sheet — Week 4',  date: '2024-03-11', status: 'Pending',   company: 'Ghana Revenue Authority' },
-  { id: 2, name: 'Abena Asante',   index: 'CS/0198/19', title: 'Weekly Log Sheet -Week 3',      date: '2024-03-08', status: 'Pending',   company: 'MTN Ghana' },
-  { id: 3, name: 'Carl Tsidi',    index: 'CS/0312/19', title: 'Weekly Log Sheet — Week 9',     date: '2024-03-06', status: 'Reviewed',  company: 'Vodafone Ghana' },
-  { id: 4, name: 'Ama Boateng',    index: 'CS/0267/19', title: 'Weekly Log Sheet - Week 5', date: '2024-03-04', status: 'Reviewed',  company: 'KPMG Ghana' },
-  { id: 5, name: 'Tettey Ara Dede',  index: 'CS/0155/19', title: 'Weekly Log Sheet - Week 7',       date: '2024-02-28', status: 'Needs Revision', company: 'Ecobank Ghana' },
-  { id: 6, name: 'Efua Mensah',    index: 'CS/0389/19', title: 'Weekly Log Sheet — Week 8',     date: '2024-02-25', status: 'Reviewed',  company: 'Tullow Oil Ghana' },
-]
+import { getSupervisorLogs, getSupervisorStudents } from '../api'
 
 const STATUS_BADGE = {
   'Reviewed':       'badge-success',
@@ -40,20 +32,99 @@ function Avatar({ name }) {
 
 export default function SupervisorDashboard() {
   const navigate = useNavigate()
+  const [students, setStudents] = useState([])
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
 
-  const filtered = STUDENTS.filter(s => {
-    const matchSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.title.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = filter === 'All' || s.status === filter
-    return matchSearch && matchStatus
-  })
+  useEffect(() => {
+    let active = true
 
-  const pending  = STUDENTS.filter(s => s.status === 'Pending').length
-  const reviewed = STUDENTS.filter(s => s.status === 'Reviewed').length
-  const revise   = STUDENTS.filter(s => s.status === 'Needs Revision').length
+    async function loadSupervisorData() {
+      setLoading(true)
+      setError('')
+      try {
+        const [studentsResponse, logsResponse] = await Promise.all([
+          getSupervisorStudents(),
+          getSupervisorLogs(),
+        ])
+
+        if (!active) return
+        setStudents(Array.isArray(studentsResponse) ? studentsResponse : [])
+        setLogs(Array.isArray(logsResponse) ? logsResponse : [])
+      } catch (err) {
+        if (!active) return
+        setError(err?.message || 'Unable to load supervisor dashboard data.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    loadSupervisorData()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const studentByIndex = useMemo(() => {
+    const map = new Map()
+    students.forEach((student) => {
+      if (student?.index_number) {
+        map.set(student.index_number.toLowerCase(), student)
+      }
+    })
+    return map
+  }, [students])
+
+  const entries = useMemo(() => {
+    return logs.map((logItem) => {
+      const indexFromLog = logItem?.student_index_number || ''
+      const matchedStudent = studentByIndex.get(indexFromLog.toLowerCase())
+      const studentFirstName = matchedStudent?.first_name || ''
+      const studentLastName = matchedStudent?.last_name || ''
+      const studentNameFromProfile = `${studentFirstName} ${studentLastName}`.trim()
+      const studentName =
+        logItem?.student_name ||
+        studentNameFromProfile ||
+        matchedStudent?.sch_email ||
+        'Unknown Student'
+      const studentIndex = indexFromLog || matchedStudent?.index_number || '-'
+      const submittedDate = logItem?.date || logItem?.created_at || null
+
+      let status = 'Pending'
+      if (logItem?.status === 'reviewed') status = 'Reviewed'
+      if (logItem?.status === 'needs_revision') status = 'Needs Revision'
+
+      return {
+        id: logItem?.id,
+        name: studentName,
+        index: studentIndex,
+        title: `Weekly Log Sheet - Week ${logItem?.week_number || 1}`,
+        date: submittedDate,
+        status,
+        company: logItem?.company_name || '-',
+      }
+    })
+  }, [logs, studentByIndex])
+
+  const filtered = useMemo(() => {
+    return entries.filter((entry) => {
+      const query = search.toLowerCase().trim()
+      const matchSearch =
+        !query ||
+        entry.name.toLowerCase().includes(query) ||
+        entry.title.toLowerCase().includes(query) ||
+        entry.index.toLowerCase().includes(query)
+      const matchStatus = filter === 'All' || entry.status === filter
+      return matchSearch && matchStatus
+    })
+  }, [entries, filter, search])
+
+  const pending = entries.filter((entry) => entry.status === 'Pending').length
+  const reviewed = entries.filter((entry) => entry.status === 'Reviewed').length
+  const revise = entries.filter((entry) => entry.status === 'Needs Revision').length
 
   return (
     <div className="space-y-7 animate-fade-in">
@@ -66,7 +137,7 @@ export default function SupervisorDashboard() {
           <p className="text-primary-200 text-sm mb-1">
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
-          <h2 className="font-heading text-2xl font-bold">Supervisor Dashboard 📋</h2>
+          <h2 className="font-heading text-2xl font-bold">Supervisor Dashboard</h2>
           <p className="text-primary-200 text-sm mt-2">
             You have <span className="text-white font-semibold">{pending} reports</span> awaiting
             your review today.
@@ -76,10 +147,10 @@ export default function SupervisorDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard icon={Users}        label="Total Students"    value={STUDENTS.length} color="green"  trendLabel="Active this semester" />
-        <StatsCard icon={Clock}        label="Pending Reviews"   value={pending}         color="amber"  trendLabel="Needs your attention" />
-        <StatsCard icon={CheckCircle}  label="Completed Reviews" value={reviewed}        color="blue"   trend={8} trendLabel="vs last week" />
-        <StatsCard icon={AlertCircle}  label="Needs Revision"    value={revise}          color="red"    trendLabel="Sent back to students" />
+        <StatsCard icon={Users} label="Total Students" value={students.length} color="green" trendLabel="Assigned to you" />
+        <StatsCard icon={Clock} label="Pending Reviews" value={pending} color="amber" trendLabel="Needs your attention" />
+        <StatsCard icon={CheckCircle} label="Completed Reviews" value={reviewed} color="blue" trendLabel="Approved logs" />
+        <StatsCard icon={AlertCircle} label="Needs Revision" value={revise} color="red" trendLabel="Returned logs" />
       </div>
 
       {/* Table */}
@@ -92,20 +163,20 @@ export default function SupervisorDashboard() {
               className="form-input pl-9 text-sm"
               placeholder="Search by student name or report title..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {['All', 'Pending', 'Reviewed', 'Needs Revision'].map(s => (
+            {['All', 'Pending', 'Reviewed', 'Needs Revision'].map((status) => (
               <button
-                key={s}
-                onClick={() => setFilter(s)}
+                key={status}
+                onClick={() => setFilter(status)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap
-                  ${filter === s
+                  ${filter === status
                     ? 'bg-primary-700 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
-                {s} {s === 'Pending' && pending > 0 && (
+                {status} {status === 'Pending' && pending > 0 && (
                   <span className="ml-1 bg-amber-400 text-white rounded-full px-1.5 py-0.5 text-[10px]">
                     {pending}
                   </span>
@@ -126,15 +197,29 @@ export default function SupervisorDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-14 text-gray-400 text-sm font-body">
+                    Loading assigned students and logs...
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && error ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-14 text-red-500 text-sm font-body">
+                    {error}
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && !error && filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-14 text-gray-400 text-sm font-body">
                     <FileText size={32} className="mx-auto mb-2 opacity-30" />
                     No submissions match your filter
                   </td>
                 </tr>
-              ) : (
-                filtered.map((s, i) => (
+              )}
+              {!loading && !error && filtered.map((s, i) => (
                   <tr
                     key={s.id}
                     className={`hover:bg-gray-50/60 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30'}`}
@@ -162,7 +247,7 @@ export default function SupervisorDashboard() {
                     <td className="table-cell text-gray-500 text-sm">{s.company}</td>
                     {/* Date */}
                     <td className="table-cell text-gray-500 text-sm whitespace-nowrap">
-                      {new Date(s.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {s.date ? new Date(s.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                     </td>
                     {/* Status */}
                     <td className="table-cell">
@@ -187,8 +272,7 @@ export default function SupervisorDashboard() {
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
@@ -196,15 +280,9 @@ export default function SupervisorDashboard() {
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/40 flex items-center justify-between">
           <p className="text-xs text-gray-400 font-body">
-            Showing <strong>{filtered.length}</strong> of <strong>{STUDENTS.length}</strong> submissions
+            Showing <strong>{filtered.length}</strong> of <strong>{entries.length}</strong> submissions
           </p>
-          <div className="flex items-center gap-1">
-            {[1].map(p => (
-              <button key={p} className="w-7 h-7 rounded-lg bg-primary-600 text-white text-xs font-semibold">
-                {p}
-              </button>
-            ))}
-          </div>
+          <p className="text-xs text-gray-400 font-body">Assigned students: <strong>{students.length}</strong></p>
         </div>
       </div>
     </div>
