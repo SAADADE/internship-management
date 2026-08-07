@@ -1,463 +1,310 @@
---
--- PostgreSQL database dump
---
+-- internship_system.sql
+-- Generated from Backend/report_generator/models.py
+-- PostgreSQL schema script for pgAdmin ERD generation
 
-\restrict d7PHOSKdx4xXo7MBUViwNDMmfLKMdihiKpisUTO6FLP33UZR7BevhJErNHuFNQk
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Dumped from database version 18.4
--- Dumped by pg_dump version 18.4
+-- Optional: keep everything grouped
+CREATE SCHEMA IF NOT EXISTS public;
 
--- Started on 2026-06-13 20:45:11
+-- Drop in dependency order for repeatable re-runs
+DROP TABLE IF EXISTS public.report_generator_student_supervisors CASCADE;
+DROP TABLE IF EXISTS public.report_generator_activitylog CASCADE;
+DROP TABLE IF EXISTS public.report_generator_companyrequest CASCADE;
+DROP TABLE IF EXISTS public.report_generator_internshipreportdraft CASCADE;
+DROP TABLE IF EXISTS public.report_generator_appraisal CASCADE;
+DROP TABLE IF EXISTS public.report_generator_review CASCADE;
+DROP TABLE IF EXISTS public.report_generator_report CASCADE;
+DROP TABLE IF EXISTS public.report_generator_log CASCADE;
+DROP TABLE IF EXISTS public.report_generator_internship CASCADE;
+DROP TABLE IF EXISTS public.report_generator_company CASCADE;
+DROP TABLE IF EXISTS public.report_generator_student CASCADE;
+DROP TABLE IF EXISTS public.report_generator_supervisor CASCADE;
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+DROP TYPE IF EXISTS public.company_request_status CASCADE;
+DROP TYPE IF EXISTS public.internship_status CASCADE;
+DROP TYPE IF EXISTS public.log_status CASCADE;
+DROP TYPE IF EXISTS public.report_status CASCADE;
+DROP TYPE IF EXISTS public.review_decision CASCADE;
 
---
--- TOC entry 2 (class 3079 OID 16388)
--- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
---
+CREATE TYPE public.company_request_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE public.internship_status AS ENUM ('pending', 'active', 'completed', 'rejected');
+CREATE TYPE public.log_status AS ENUM ('draft', 'submitted', 'reviewed', 'needs_revision');
+CREATE TYPE public.report_status AS ENUM ('generating', 'ready', 'graded');
+CREATE TYPE public.review_decision AS ENUM ('approved', 'rejected');
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+-- NOTE:
+-- This schema assumes Django's default auth table exists as public.auth_user(id).
+-- If your auth user table differs, adjust FK targets below.
 
-
---
--- TOC entry 5079 (class 0 OID 0)
--- Dependencies: 2
--- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
---
-
-COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
-
-
---
--- TOC entry 913 (class 1247 OID 16738)
--- Name: internship_status; Type: TYPE; Schema: public; Owner: postgres
---
-
-CREATE TYPE public.internship_status AS ENUM (
-    'pending',
-    'active',
-    'completed',
-    'rejected'
+CREATE TABLE public.report_generator_supervisor (
+    supervisor_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id integer UNIQUE NULL,
+    fullname varchar(150) NOT NULL,
+    password_hash text NOT NULL DEFAULT '',
+    email varchar(254) UNIQUE NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_supervisor_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE CASCADE
 );
 
-
-ALTER TYPE public.internship_status OWNER TO postgres;
-
---
--- TOC entry 916 (class 1247 OID 16748)
--- Name: log_status; Type: TYPE; Schema: public; Owner: postgres
---
-
-CREATE TYPE public.log_status AS ENUM (
-    'draft',
-    'submitted',
-    'reviewed',
-    'needs_revision'
+CREATE TABLE public.report_generator_student (
+    student_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id integer UNIQUE NULL,
+    sch_email varchar(254) NOT NULL UNIQUE,
+    index_number varchar(50) NOT NULL UNIQUE,
+    first_name varchar(100) NOT NULL,
+    last_name varchar(100) NOT NULL,
+    faculty varchar(150) NOT NULL DEFAULT '',
+    department varchar(150) NOT NULL DEFAULT '',
+    programme varchar(150) NOT NULL DEFAULT '',
+    level varchar(10) NOT NULL DEFAULT '',
+    institution_name varchar(255) NOT NULL DEFAULT '',
+    phone_number varchar(50) NOT NULL DEFAULT '',
+    password_hash text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_student_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE CASCADE
 );
 
-
-ALTER TYPE public.log_status OWNER TO postgres;
-
---
--- TOC entry 919 (class 1247 OID 16758)
--- Name: report_status; Type: TYPE; Schema: public; Owner: postgres
---
-
-CREATE TYPE public.report_status AS ENUM (
-    'generating',
-    'ready',
-    'graded'
+CREATE TABLE public.report_generator_company (
+    company_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name varchar(255) NOT NULL UNIQUE,
+    location varchar(255) NOT NULL DEFAULT 'Kumasi',
+    created_by_id integer NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_company_created_by
+        FOREIGN KEY (created_by_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE SET NULL
 );
 
-
-ALTER TYPE public.report_status OWNER TO postgres;
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
---
--- TOC entry 222 (class 1259 OID 16655)
--- Name: internship; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.internship (
-    internship_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    company_name character varying(200) NOT NULL,
-    company_address text,
-    internship_position character varying(150) NOT NULL,
-    internship_supervisor character varying(150),
-    internship_supervisor_email character varying(255),
-    internship_duration character varying(100),
+CREATE TABLE public.report_generator_internship (
+    internship_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_name varchar(200) NOT NULL,
+    company_address text NOT NULL DEFAULT '',
+    internship_position varchar(150) NOT NULL,
+    internship_supervisor varchar(150) NOT NULL DEFAULT '',
+    internship_supervisor_email varchar(254) NOT NULL DEFAULT '',
+    supervisor_id uuid NULL,
+    internship_duration varchar(100) NOT NULL DEFAULT '',
+    department varchar(150) NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    start_date date NULL,
+    end_date date NULL,
     student_id uuid NOT NULL,
-    status public.internship_status DEFAULT 'pending'::public.internship_status NOT NULL
+    status public.internship_status NOT NULL DEFAULT 'pending',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_internship_supervisor
+        FOREIGN KEY (supervisor_id)
+        REFERENCES public.report_generator_supervisor (supervisor_id)
+        ON DELETE SET NULL,
+    CONSTRAINT fk_internship_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE
 );
 
-
-ALTER TABLE public.internship OWNER TO postgres;
-
---
--- TOC entry 223 (class 1259 OID 16673)
--- Name: log; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.log (
-    log_id uuid DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE public.report_generator_log (
+    log_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id uuid NOT NULL,
+    internship_id uuid NULL,
+    student_name varchar(255) NOT NULL DEFAULT '',
+    student_index_number varchar(50) NOT NULL DEFAULT '',
+    department varchar(150) NOT NULL DEFAULT '',
+    programme varchar(150) NOT NULL DEFAULT '',
+    level varchar(20) NOT NULL DEFAULT '',
+    institution varchar(255) NOT NULL DEFAULT '',
+    company_name varchar(200) NOT NULL DEFAULT '',
+    department_unit varchar(150) NOT NULL DEFAULT '',
+    supervisor_name varchar(150) NOT NULL DEFAULT '',
     log_text text NOT NULL,
-    status public.log_status DEFAULT 'draft'::public.log_status NOT NULL,
-    week_number smallint,
-    log_date date,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT log_week_number_check CHECK ((week_number >= 1))
+    status public.log_status NOT NULL DEFAULT 'draft',
+    week_number smallint NULL,
+    log_date date NULL,
+    start_date date NULL,
+    end_date date NULL,
+    achievements text NOT NULL DEFAULT '',
+    daily_entries jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_log_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_log_internship
+        FOREIGN KEY (internship_id)
+        REFERENCES public.report_generator_internship (internship_id)
+        ON DELETE SET NULL,
+    CONSTRAINT chk_log_week_positive
+        CHECK (week_number IS NULL OR week_number > 0)
 );
 
-
-ALTER TABLE public.log OWNER TO postgres;
-
---
--- TOC entry 224 (class 1259 OID 16690)
--- Name: report; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.report (
-    report_id uuid DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE public.report_generator_report (
+    report_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id uuid NOT NULL,
-    report_file text,
-    status public.report_status DEFAULT 'generating'::public.report_status NOT NULL,
-    grade numeric(4,2),
-    supervisor_feedback text,
-    CONSTRAINT report_grade_check CHECK (((grade >= (0)::numeric) AND (grade <= (100)::numeric)))
+    report_file text NULL,
+    status public.report_status NOT NULL DEFAULT 'generating',
+    grade numeric(5,2) NULL,
+    supervisor_feedback text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_report_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE,
+    CONSTRAINT chk_report_grade_range
+        CHECK (grade IS NULL OR (grade >= 0 AND grade <= 100))
 );
 
-
-ALTER TABLE public.report OWNER TO postgres;
-
---
--- TOC entry 225 (class 1259 OID 16706)
--- Name: reviews; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.reviews (
-    review_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    report_id uuid NOT NULL,
-    log_id uuid,
-    review_text text NOT NULL,
-    supervisor_id uuid NOT NULL
+CREATE TABLE public.report_generator_review (
+    review_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id uuid NULL,
+    log_id uuid UNIQUE NULL,
+    review_text text NOT NULL DEFAULT '',
+    supervisor_id uuid NULL,
+    decision public.review_decision NULL,
+    comment text NOT NULL DEFAULT '',
+    score smallint NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_review_report
+        FOREIGN KEY (report_id)
+        REFERENCES public.report_generator_report (report_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_review_log
+        FOREIGN KEY (log_id)
+        REFERENCES public.report_generator_log (log_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_review_supervisor
+        FOREIGN KEY (supervisor_id)
+        REFERENCES public.report_generator_supervisor (supervisor_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT chk_review_score_range
+        CHECK (score IS NULL OR (score >= 0 AND score <= 100))
 );
 
-
-ALTER TABLE public.reviews OWNER TO postgres;
-
---
--- TOC entry 221 (class 1259 OID 16632)
--- Name: student; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.student (
-    student_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    teams_id character varying(100),
-    sch_email character varying(255) NOT NULL,
-    index_number character varying(50) NOT NULL,
-    first_name character varying(100) NOT NULL,
-    last_name character varying(100) NOT NULL,
-    supervisor_id uuid,
-    password_hash text DEFAULT ''::text NOT NULL
+CREATE TABLE public.report_generator_appraisal (
+    appraisal_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid NOT NULL UNIQUE,
+    supervisor_id uuid NOT NULL,
+    scores jsonb NOT NULL DEFAULT '{}'::jsonb,
+    general_comments text NOT NULL DEFAULT '',
+    supervisor_name varchar(150) NOT NULL DEFAULT '',
+    position varchar(150) NOT NULL DEFAULT '',
+    signature text NOT NULL DEFAULT '',
+    appraisal_date date NULL,
+    submitted_at timestamptz NOT NULL DEFAULT now(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_appraisal_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_appraisal_supervisor
+        FOREIGN KEY (supervisor_id)
+        REFERENCES public.report_generator_supervisor (supervisor_id)
+        ON DELETE RESTRICT
 );
 
-
-ALTER TABLE public.student OWNER TO postgres;
-
---
--- TOC entry 220 (class 1259 OID 16624)
--- Name: supervisor; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.supervisor (
-    supervisor_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    fullname character varying(150) NOT NULL,
-    password_hash text DEFAULT ''::text NOT NULL,
-    email character varying(255)
+CREATE TABLE public.report_generator_internshipreportdraft (
+    id bigserial PRIMARY KEY,
+    student_id uuid NOT NULL UNIQUE,
+    introduction text NOT NULL DEFAULT '',
+    abstract text NOT NULL DEFAULT '',
+    conclusion text NOT NULL DEFAULT '',
+    department varchar(255) NOT NULL DEFAULT '',
+    company_name varchar(255) NOT NULL DEFAULT '',
+    supervisor_name varchar(255) NOT NULL DEFAULT '',
+    additional_notes text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_draft_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE
 );
 
-
-ALTER TABLE public.supervisor OWNER TO postgres;
-
---
--- TOC entry 5070 (class 0 OID 16655)
--- Dependencies: 222
--- Data for Name: internship; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.internship (internship_id, company_name, company_address, internship_position, internship_supervisor, internship_supervisor_email, internship_duration, student_id, status) FROM stdin;
-\.
-
-
---
--- TOC entry 5071 (class 0 OID 16673)
--- Dependencies: 223
--- Data for Name: log; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.log (log_id, student_id, log_text, status, week_number, log_date, created_at) FROM stdin;
-\.
-
-
---
--- TOC entry 5072 (class 0 OID 16690)
--- Dependencies: 224
--- Data for Name: report; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.report (report_id, student_id, report_file, status, grade, supervisor_feedback) FROM stdin;
-\.
-
-
---
--- TOC entry 5073 (class 0 OID 16706)
--- Dependencies: 225
--- Data for Name: reviews; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.reviews (review_id, report_id, log_id, review_text, supervisor_id) FROM stdin;
-\.
-
-
---
--- TOC entry 5069 (class 0 OID 16632)
--- Dependencies: 221
--- Data for Name: student; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.student (student_id, teams_id, sch_email, index_number, first_name, last_name, supervisor_id, password_hash) FROM stdin;
-\.
-
-
---
--- TOC entry 5068 (class 0 OID 16624)
--- Dependencies: 220
--- Data for Name: supervisor; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.supervisor (supervisor_id, fullname, password_hash, email) FROM stdin;
-\.
-
-
---
--- TOC entry 4902 (class 2606 OID 16666)
--- Name: internship internship_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.internship
-    ADD CONSTRAINT internship_pkey PRIMARY KEY (internship_id);
-
-
---
--- TOC entry 4905 (class 2606 OID 16683)
--- Name: log log_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.log
-    ADD CONSTRAINT log_pkey PRIMARY KEY (log_id);
-
-
---
--- TOC entry 4908 (class 2606 OID 16699)
--- Name: report report_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report
-    ADD CONSTRAINT report_pkey PRIMARY KEY (report_id);
-
-
---
--- TOC entry 4913 (class 2606 OID 16716)
--- Name: reviews reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.reviews
-    ADD CONSTRAINT reviews_pkey PRIMARY KEY (review_id);
-
-
---
--- TOC entry 4895 (class 2606 OID 16648)
--- Name: student student_index_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.student
-    ADD CONSTRAINT student_index_number_key UNIQUE (index_number);
-
-
---
--- TOC entry 4897 (class 2606 OID 16644)
--- Name: student student_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.student
-    ADD CONSTRAINT student_pkey PRIMARY KEY (student_id);
-
-
---
--- TOC entry 4899 (class 2606 OID 16646)
--- Name: student student_sch_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.student
-    ADD CONSTRAINT student_sch_email_key UNIQUE (sch_email);
-
-
---
--- TOC entry 4890 (class 2606 OID 16736)
--- Name: supervisor supervisor_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.supervisor
-    ADD CONSTRAINT supervisor_email_key UNIQUE (email);
-
-
---
--- TOC entry 4892 (class 2606 OID 16631)
--- Name: supervisor supervisor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.supervisor
-    ADD CONSTRAINT supervisor_pkey PRIMARY KEY (supervisor_id);
-
-
---
--- TOC entry 4900 (class 1259 OID 16672)
--- Name: idx_internship_student; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_internship_student ON public.internship USING btree (student_id);
-
-
---
--- TOC entry 4903 (class 1259 OID 16689)
--- Name: idx_log_student; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_log_student ON public.log USING btree (student_id);
-
-
---
--- TOC entry 4906 (class 1259 OID 16705)
--- Name: idx_report_student; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_report_student ON public.report USING btree (student_id);
-
-
---
--- TOC entry 4909 (class 1259 OID 16728)
--- Name: idx_reviews_log; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_reviews_log ON public.reviews USING btree (log_id);
-
-
---
--- TOC entry 4910 (class 1259 OID 16727)
--- Name: idx_reviews_report; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_reviews_report ON public.reviews USING btree (report_id);
-
-
---
--- TOC entry 4911 (class 1259 OID 16781)
--- Name: idx_reviews_supervisor; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_reviews_supervisor ON public.reviews USING btree (supervisor_id);
-
-
---
--- TOC entry 4893 (class 1259 OID 16654)
--- Name: idx_student_supervisor; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_student_supervisor ON public.student USING btree (supervisor_id);
-
-
---
--- TOC entry 4915 (class 2606 OID 16667)
--- Name: internship internship_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.internship
-    ADD CONSTRAINT internship_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id) ON DELETE CASCADE;
-
-
---
--- TOC entry 4916 (class 2606 OID 16684)
--- Name: log log_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.log
-    ADD CONSTRAINT log_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id) ON DELETE CASCADE;
-
-
---
--- TOC entry 4917 (class 2606 OID 16700)
--- Name: report report_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report
-    ADD CONSTRAINT report_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id) ON DELETE CASCADE;
-
-
---
--- TOC entry 4918 (class 2606 OID 16722)
--- Name: reviews reviews_log_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.reviews
-    ADD CONSTRAINT reviews_log_id_fkey FOREIGN KEY (log_id) REFERENCES public.log(log_id) ON DELETE CASCADE;
-
-
---
--- TOC entry 4919 (class 2606 OID 16717)
--- Name: reviews reviews_report_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.reviews
-    ADD CONSTRAINT reviews_report_id_fkey FOREIGN KEY (report_id) REFERENCES public.report(report_id) ON DELETE CASCADE;
-
-
---
--- TOC entry 4920 (class 2606 OID 16776)
--- Name: reviews reviews_supervisor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.reviews
-    ADD CONSTRAINT reviews_supervisor_id_fkey FOREIGN KEY (supervisor_id) REFERENCES public.supervisor(supervisor_id) ON DELETE RESTRICT;
-
-
---
--- TOC entry 4914 (class 2606 OID 16649)
--- Name: student student_supervisor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.student
-    ADD CONSTRAINT student_supervisor_id_fkey FOREIGN KEY (supervisor_id) REFERENCES public.supervisor(supervisor_id) ON DELETE SET NULL;
-
-
--- Completed on 2026-06-13 20:45:12
-
---
--- PostgreSQL database dump complete
---
-
-\unrestrict d7PHOSKdx4xXo7MBUViwNDMmfLKMdihiKpisUTO6FLP33UZR7BevhJErNHuFNQk
-
+CREATE TABLE public.report_generator_companyrequest (
+    request_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name varchar(255) NOT NULL,
+    location varchar(255) NOT NULL DEFAULT '',
+    note text NOT NULL DEFAULT '',
+    status public.company_request_status NOT NULL DEFAULT 'pending',
+    requested_by_id uuid NOT NULL,
+    reviewed_by_id integer NULL,
+    reviewed_at timestamptz NULL,
+    admin_note text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_companyrequest_student
+        FOREIGN KEY (requested_by_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_companyrequest_reviewer
+        FOREIGN KEY (reviewed_by_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE SET NULL
+);
+
+CREATE TABLE public.report_generator_activitylog (
+    activity_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_id integer NOT NULL,
+    actor_id integer NULL,
+    activity_type varchar(80) NOT NULL,
+    title varchar(255) NOT NULL,
+    message text NOT NULL DEFAULT '',
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    is_read boolean NOT NULL DEFAULT false,
+    read_at timestamptz NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_activity_recipient
+        FOREIGN KEY (recipient_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_activity_actor
+        FOREIGN KEY (actor_id)
+        REFERENCES public.auth_user (id)
+        ON DELETE SET NULL
+);
+
+-- M2M join table for Student.supervisors
+CREATE TABLE public.report_generator_student_supervisors (
+    id bigserial PRIMARY KEY,
+    student_id uuid NOT NULL,
+    supervisor_id uuid NOT NULL,
+    CONSTRAINT uq_student_supervisor_pair UNIQUE (student_id, supervisor_id),
+    CONSTRAINT fk_m2m_student
+        FOREIGN KEY (student_id)
+        REFERENCES public.report_generator_student (student_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_m2m_supervisor
+        FOREIGN KEY (supervisor_id)
+        REFERENCES public.report_generator_supervisor (supervisor_id)
+        ON DELETE CASCADE
+);
+
+-- Helpful indexes for ERD-backed query performance
+CREATE INDEX idx_company_created_by ON public.report_generator_company (created_by_id);
+CREATE INDEX idx_internship_student ON public.report_generator_internship (student_id);
+CREATE INDEX idx_internship_supervisor ON public.report_generator_internship (supervisor_id);
+CREATE INDEX idx_log_student ON public.report_generator_log (student_id);
+CREATE INDEX idx_log_internship ON public.report_generator_log (internship_id);
+CREATE INDEX idx_report_student ON public.report_generator_report (student_id);
+CREATE INDEX idx_review_report ON public.report_generator_review (report_id);
+CREATE INDEX idx_review_supervisor ON public.report_generator_review (supervisor_id);
+CREATE INDEX idx_companyrequest_student ON public.report_generator_companyrequest (requested_by_id);
+CREATE INDEX idx_companyrequest_reviewer ON public.report_generator_companyrequest (reviewed_by_id);
+CREATE INDEX idx_activity_recipient ON public.report_generator_activitylog (recipient_id);
+CREATE INDEX idx_activity_actor ON public.report_generator_activitylog (actor_id);
+CREATE INDEX idx_activity_created_at ON public.report_generator_activitylog (created_at);
+
+-- End of schema
