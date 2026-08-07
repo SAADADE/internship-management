@@ -4,20 +4,20 @@ import Navbar from './Navbar'
 import { useLocation } from 'react-router-dom'
 
 const PAGE_META = {
-  '/dashboard':            { title: 'Dashboard', breadcrumb: 'Student Portal / Dashboard' },
-  '/internship/register':  { title: 'Internship Registration', breadcrumb: 'Student Portal / Internship' },
-  '/reports':              { title: 'My Reports', breadcrumb: 'Student Portal / Reports' },
-  '/reports/upload':       { title: 'Upload Report', breadcrumb: 'Student Portal / Reports / Upload' },
-  '/supervisor':           { title: 'Supervisor Dashboard', breadcrumb: 'Supervisor Portal / Dashboard' },
-  '/admin':                { title: 'Admin Dashboard', breadcrumb: 'Admin Portal / Dashboard' },
-  '/admin/companies':      { title: 'Manage Companies', breadcrumb: 'Admin Portal / Companies' },
-  '/profile':              { title: 'My Profile', breadcrumb: 'Account / Profile' },
+  '/dashboard':            { title: 'Dashboard' },
+  '/internship/register':  { title: 'Internship Registration' },
+  '/reports':              { title: 'My Reports' },
+  '/reports/upload':       { title: 'Upload Report' },
+  '/supervisor':           { title: 'Supervisor Dashboard' },
+  '/admin':                { title: 'Admin Dashboard' },
+  '/admin/companies':      { title: 'Manage Companies' },
+  '/profile':              { title: 'My Profile' },
 }
 
 export default function Layout({ children, fullWidth = false }) {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
-  const meta = PAGE_META[location.pathname] || { title: 'AcademIQ', breadcrumb: '' }
+  const meta = PAGE_META[location.pathname] || { title: 'InternDO', breadcrumb: '' }
 
   const sidebarWidth = collapsed ? 'ml-16' : 'ml-60'
 

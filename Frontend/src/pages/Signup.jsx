@@ -213,8 +213,7 @@ export default function Signup() {
             <GraduationCap size={22} className="text-white" />
           </div>
           <div>
-            <span className="font-heading font-bold text-white text-xl">AcademicIQ</span>
-            <p className="text-xs text-primary-400">Management Portal</p>
+            <span className="font-heading font-bold text-white text-xl">InternDo</span>
           </div>
         </div>
 
@@ -254,7 +253,7 @@ export default function Signup() {
                 <GraduationCap size={20} className="text-white" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">AcademicIQ</p>
+                <p className="text-sm text-slate-500">InternDo</p>
                 <h1 className="text-xl font-heading font-bold text-slate-900">Create an account</h1>
               </div>
             </div>
@@ -264,7 +263,7 @@ export default function Signup() {
             <div className="mb-8">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary-600">Welcome aboard</p>
               <h1 className="mt-3 text-3xl font-heading font-bold text-slate-900 sm:text-4xl">
-                Create your AcademicIQ account.
+                Create your InternDo account.
               </h1>
             </div>
 
@@ -461,21 +460,6 @@ export default function Signup() {
                     {errors.program && <p className="mt-2 text-sm text-red-600">{errors.program}</p>}
                   </div>
                 )}
-
-                <div>
-                  <label htmlFor="institution" className="form-label">Institution</label>
-                  <input
-                    id="institution"
-                    name="institution"
-                    type="text"
-                    value={formData.institution}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, institution: validateField('institution', e.target.value) }))}
-                    className="form-input"
-                    placeholder="University of Ghana"
-                  />
-                  {errors.institution && <p className="mt-2 text-sm text-red-600">{errors.institution}</p>}
-                </div>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -534,10 +518,10 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={() => setFormData((current) => ({ ...current, showPassword: !current.showPassword }))}
-                    className="absolute right-3 top-1/2 h-10 -translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                    className=" absolute right-3 top-1/2 h-10-translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
                     aria-label={formData.showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {formData.showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {formData.showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                   {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
                 </div>
@@ -560,10 +544,10 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={() => setFormData((current) => ({ ...current, showPassword: !current.showPassword }))}
-                    className="absolute right-3 top-1/2 h-10 -translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                    className="absolute right-3 top-1/2 h-10-translate-y-1/2  rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
                     aria-label={formData.showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {formData.showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    {formData.showPassword ? <Eye size={17} /> : <EyeOff size={17} />}
                   </button>
                   {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
                 </div>

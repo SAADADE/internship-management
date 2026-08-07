@@ -57,8 +57,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         </div>
         {!collapsed && (
           <div>
-            <span className="font-heading font-bold text-white text-base tracking-tight">AcademIQ</span>
-            <p className="text-[10px] text-primary-300 font-body leading-tight">Management Portal</p>
+            <span className="font-heading font-bold text-white text-base tracking-tight">InternDo</span>
           </div>
         )}
       </div>

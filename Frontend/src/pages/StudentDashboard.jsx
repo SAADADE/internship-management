@@ -123,10 +123,10 @@ export default function StudentDashboard() {
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <h2 className="font-heading text-2xl font-bold">
-            {getGreeting()}, {firstName} 👋
+            {getGreeting()}, {firstName} 
           </h2>
           <p className="text-primary-200 text-sm mt-2 font-body">
-            You have <span className="text-white font-semibold">{loading ? 'loading your summary' : `${summary?.stats?.pending_reviews || 0} pending review${(summary?.stats?.pending_reviews || 0) === 1 ? '' : 's'}`}</span> and a deadline in <span className="text-amber-300 font-semibold">3 days</span>.
+            You have <span className="text-white font-semibold">{loading ? 'loading your summary' : `${summary?.stats?.pending_reviews || 0} pending review${(summary?.stats?.pending_reviews || 0) === 1 ? '' : 's'}`}</span> 
           </p>
         </div>
       </div>

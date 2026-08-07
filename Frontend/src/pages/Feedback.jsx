@@ -207,13 +207,6 @@ export default function Feedback() {
                 <p className="text-xs text-gray-500 font-medium mb-3">FEEDBACK</p>
                 <p className="text-sm text-gray-700 leading-relaxed">{selectedFeedback.feedback}</p>
               </div>
-
-              <button
-                onClick={() => navigate(`/feedback/log-sheet/${selectedFeedback.id}`)}
-                className="w-full btn-primary text-sm"
-              >
-                View Feedback details
-              </button>
             </div>
           ) : (
             <div className="card p-6 text-center">

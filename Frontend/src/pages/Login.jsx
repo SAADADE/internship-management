@@ -64,8 +64,7 @@ export default function Login() {
             <GraduationCap size={22} className="text-white" />
           </div>
           <div>
-            <span className="font-heading font-bold text-white text-xl">AcademicIQ</span>
-            <p className="text-xs text-primary-400">Management Portal</p>
+            <span className="font-heading font-bold text-white text-xl">InternDO</span>
           </div>
         </div>
 
@@ -99,7 +98,7 @@ export default function Login() {
             <div className="w-8 h-8 rounded-lg bg-primary-700 flex items-center justify-center">
               <GraduationCap size={16} className="text-white" />
             </div>
-            <span className="font-heading font-bold text-gray-900">AcademIQ</span>
+            <span className="font-heading font-bold text-gray-900">InternDo</span>
           </div>
 
           <div className="card p-8">
@@ -140,7 +139,7 @@ export default function Login() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400
                                hover:text-gray-600 transition-colors"
                   >
-                    {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+                    {showPass ? <Eye size={17} /> : <EyeOff size={17} />}
                   </button>
                 </div>
               </div>
@@ -203,7 +202,7 @@ export default function Login() {
             </button>
           </p>
           <p className="text-center text-xs text-gray-400 mt-4">
-            © {new Date().getFullYear()} AcademIQ. All rights reserved.
+            © {new Date().getFullYear()} InternDo. All rights reserved.
           </p>
         </div>
       </div>
