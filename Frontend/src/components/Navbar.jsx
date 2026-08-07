@@ -1,17 +1,93 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react'
+import { Bell, ChevronDown, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
+function formatRelativeTime(isoTime) {
+  if (!isoTime) return 'Just now'
+  const then = new Date(isoTime).getTime()
+  if (Number.isNaN(then)) return 'Just now'
+
+  const seconds = Math.floor((Date.now() - then) / 1000)
+  if (seconds < 60) return 'Just now'
+
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hr ago`
+
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
 export default function Navbar({ pageTitle, breadcrumb }) {
-  const { user, notifications, markAllRead, logout } = useAuth()
+  const {
+    user,
+    notifications,
+    unreadCount,
+    refreshNotifications,
+    markAllRead,
+    markNotificationRead,
+    logout,
+  } = useAuth()
   const navigate = useNavigate()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const notifsRef = useRef(null)
   const profileRef = useRef(null)
 
-  const unread = notifications.filter(n => !n.read).length
+  const unread = unreadCount
+
+  const getNotificationTarget = (notification) => {
+    const type = notification?.type
+    const metadata = notification?.metadata || {}
+    const role = user?.role
+
+    if (type === 'weekly_log_submitted') {
+      return metadata.log_id ? `/supervisor/review/${metadata.log_id}` : '/supervisor/reports'
+    }
+    if (type === 'log_reviewed' || type === 'logs_bulk_reviewed') {
+      return '/feedback'
+    }
+    if (type === 'report_submitted') {
+      if (role === 'admin') return '/admin/reports'
+      if (role === 'supervisor') return '/supervisor/reports'
+      return '/reports'
+    }
+    if (type === 'appraisal_submitted') {
+      return role === 'admin' ? '/admin/reports' : '/feedback'
+    }
+    if (type === 'company_request_submitted') {
+      return '/admin/companies'
+    }
+    if (type === 'company_request_reviewed') {
+      return '/internship/company-request'
+    }
+    if (type === 'internship_registered') {
+      return role === 'admin' ? '/admin/students' : '/supervisor'
+    }
+
+    if (role === 'admin') return '/admin'
+    if (role === 'supervisor') return '/supervisor'
+    return '/dashboard'
+  }
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification) return
+
+    if (!notification.read) {
+      await markNotificationRead(notification.id)
+    }
+
+    setShowNotifs(false)
+    navigate(getNotificationTarget(notification))
+  }
+
+  useEffect(() => {
+    if (!showNotifs) return
+    refreshNotifications()
+  }, [showNotifs, refreshNotifications])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -61,19 +137,27 @@ export default function Navbar({ pageTitle, breadcrumb }) {
                 </button>
               </div>
               <div className="max-h-72 overflow-y-auto">
+                {notifications.length === 0 && (
+                  <div className="px-4 py-6 text-sm text-gray-500 font-body text-center">
+                    No notifications yet.
+                  </div>
+                )}
                 {notifications.map(n => (
-                  <div
+                  <button
                     key={n.id}
+                    type="button"
+                    onClick={() => handleNotificationClick(n)}
                     className={`flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors
-                      ${!n.read ? 'bg-primary-50/40' : ''}`}
+                      ${!n.read ? 'bg-primary-50/40' : ''} w-full text-left`}
                   >
                     <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0
                       ${!n.read ? 'bg-primary-500' : 'bg-gray-200'}`} />
                     <div>
-                      <p className="text-sm text-gray-700 font-body">{n.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
+                      <p className="text-sm text-gray-700 font-body">{n.title || n.text}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{n.text}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(n.time)}</p>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

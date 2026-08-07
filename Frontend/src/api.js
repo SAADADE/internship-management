@@ -68,6 +68,26 @@ export function changePassword(payload) {
   return apiRequest('/auth/change-password/', { method: 'POST', body: payload })
 }
 
+export function getCurrentUserProfile() {
+  return apiRequest('/auth/me/')
+}
+
+export function getNotifications() {
+  return apiRequest('/notifications/')
+}
+
+export function getNotificationSummary() {
+  return apiRequest('/notifications/summary/')
+}
+
+export function markNotificationRead(notificationId) {
+  return apiRequest(`/notifications/${notificationId}/read/`, { method: 'POST', body: {} })
+}
+
+export function markAllNotificationsRead() {
+  return apiRequest('/notifications/mark-all-read/', { method: 'POST', body: {} })
+}
+
 export function getStudentProfile() {
   return apiRequest('/student/profile/')
 }
@@ -86,6 +106,14 @@ export function createStudentInternship(payload) {
 
 export function getStudentCompanies() {
   return apiRequest('/student/companies/')
+}
+
+export function getStudentCompanyRequests() {
+  return apiRequest('/student/company-requests/')
+}
+
+export function createStudentCompanyRequest(payload) {
+  return apiRequest('/student/company-requests/', { method: 'POST', body: payload })
 }
 
 export function getStudentDashboardSummary() {
@@ -189,6 +217,15 @@ export function updateAdminCompany(companyId, payload) {
 
 export function deleteAdminCompany(companyId) {
   return apiRequest(`/admin/companies/${companyId}/`, { method: 'DELETE', parseJson: false })
+}
+
+export function getAdminCompanyRequests(status = '') {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  return apiRequest(`/admin/company-requests/${query}`)
+}
+
+export function reviewAdminCompanyRequest(requestId, payload) {
+  return apiRequest(`/admin/company-requests/${requestId}/`, { method: 'PATCH', body: payload })
 }
 
 export function getAdminDashboard() {

@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.db import OperationalError, ProgrammingError
 from rest_framework import serializers
 from django.utils import timezone
 
-from .models import Appraisal, Company, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
+from .models import ActivityLog, Appraisal, Company, CompanyRequest, DailyLog, Internship, InternshipReportDraft, LogFeedback, Report, StudentProfile, Supervisor, SupervisorProfile
 
 
 APPRAISAL_SCORE_LABELS = {
@@ -23,7 +24,7 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = ["id", "name", "is_active"]
+        fields = ["id", "name", "location"]
         read_only_fields = ["id"]
 
 
@@ -33,7 +34,7 @@ class AdminCompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = ["id", "name", "is_active", "createdBy", "created_at", "updated_at"]
+        fields = ["id", "name", "location", "createdBy", "created_at", "updated_at"]
         read_only_fields = ["id", "createdBy", "created_at", "updated_at"]
 
     def get_createdBy(self, obj):
@@ -56,6 +57,146 @@ class AdminCompanySerializer(serializers.ModelSerializer):
         if existing.exists():
             raise serializers.ValidationError("A company with this name already exists.")
         return normalized
+
+    def validate_location(self, value):
+        normalized = (value or "").strip()
+        if not normalized:
+            raise serializers.ValidationError("Company location is required.")
+        return normalized
+
+
+class StudentCompanyRequestSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="request_id", read_only=True)
+    requestedBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompanyRequest
+        fields = [
+            "id",
+            "name",
+            "location",
+            "note",
+            "status",
+            "requestedBy",
+            "admin_note",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "status",
+            "requestedBy",
+            "admin_note",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_requestedBy(self, obj):
+        student = obj.requested_by
+        return {
+            "id": student.student_id,
+            "name": f"{student.first_name} {student.last_name}".strip() or student.sch_email,
+            "index_number": student.index_number,
+            "email": student.sch_email,
+        }
+
+    def validate_name(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Company name is required.")
+
+        if Company.objects.filter(name__iexact=normalized).exists():
+            raise serializers.ValidationError("This company already exists in the directory.")
+
+        request = self.context.get("request")
+        student = getattr(getattr(request, "user", None), "student", None)
+        if student and CompanyRequest.objects.filter(
+            requested_by=student,
+            name__iexact=normalized,
+            status="pending",
+        ).exists():
+            raise serializers.ValidationError("You already have a pending request for this company.")
+
+        return normalized
+
+
+class AdminCompanyRequestReviewSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="request_id", read_only=True)
+    requestedBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompanyRequest
+        fields = [
+            "id",
+            "name",
+            "location",
+            "note",
+            "status",
+            "requestedBy",
+            "admin_note",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "name",
+            "location",
+            "note",
+            "requestedBy",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_requestedBy(self, obj):
+        student = obj.requested_by
+        return {
+            "id": student.student_id,
+            "name": f"{student.first_name} {student.last_name}".strip() or student.sch_email,
+            "index_number": student.index_number,
+            "email": student.sch_email,
+        }
+
+    def validate_status(self, value):
+        if value not in {"approved", "rejected"}:
+            raise serializers.ValidationError("Status must be either approved or rejected.")
+        return value
+
+
+class ActivityNotificationSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="activity_id", read_only=True)
+    type = serializers.CharField(source="activity_type", read_only=True)
+    read = serializers.BooleanField(source="is_read", read_only=True)
+    time = serializers.SerializerMethodField()
+    actorName = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ActivityLog
+        fields = [
+            "id",
+            "type",
+            "title",
+            "message",
+            "time",
+            "read",
+            "actorName",
+            "metadata",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_time(self, obj):
+        return timezone.localtime(obj.created_at).isoformat()
+
+    def get_actorName(self, obj):
+        actor = obj.actor
+        if not actor:
+            return "System"
+        display_name = actor.get_full_name().strip()
+        return display_name or actor.username
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
@@ -233,7 +374,7 @@ class StudentFeedbackSerializer(serializers.ModelSerializer):
 
     def get_rating(self, obj):
         if obj.score is not None:
-            return max(1, min(5, round(obj.score / 20)))
+            return max(1, min(5, obj.score))
         return 5 if obj.decision == "approved" else 3
 
     def get_status(self, obj):
@@ -315,11 +456,31 @@ class DailyLogSerializer(serializers.ModelSerializer):
             validated_data["log_text"] = validated_data.get("achievements", "") or ""
         instance = super().create(validated_data)
         if internship_id:
-            internship = Internship.objects.filter(internship_id=internship_id).first()
+            internship = Internship.objects.filter(
+                internship_id=internship_id,
+                student=instance.student,
+            ).first()
             if internship:
                 instance.internship = internship
                 instance.save(update_fields=["internship"])
         return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        student = instance.student
+        internship = instance.internship
+
+        if not data.get("student_name") and student:
+            data["student_name"] = f"{student.first_name} {student.last_name}".strip() or student.sch_email
+        if not data.get("student_index_number") and student:
+            data["student_index_number"] = student.index_number
+        if not data.get("company_name") and internship:
+            data["company_name"] = internship.company_name
+        if not data.get("department") and internship:
+            data["department"] = internship.department
+        if not data.get("supervisor_name") and internship and internship.internship_supervisor:
+            data["supervisor_name"] = internship.internship_supervisor
+        return data
 
     def update(self, instance, validated_data):
         validated_data.pop("title", None)
@@ -400,7 +561,7 @@ class SupervisorReportSerializer(serializers.ModelSerializer):
         if not hasattr(obj, "feedback") or obj.feedback is None:
             return 0
         if obj.feedback.score is not None:
-            return max(1, min(5, round(obj.feedback.score / 20)))
+            return max(1, min(5, obj.feedback.score))
         return 5 if obj.feedback.decision == "approved" else 3
 
     def get_company(self, obj):
@@ -415,7 +576,7 @@ class SupervisorReportSerializer(serializers.ModelSerializer):
 class SupervisorLogUpdateSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=["approved", "rejected"])
     comment = serializers.CharField(required=False, allow_blank=True, default="")
-    score = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=100)
+    score = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=5)
 
 
 class AppraisalSerializer(serializers.ModelSerializer):
@@ -507,7 +668,11 @@ class AppraisalSerializer(serializers.ModelSerializer):
 
         if not student:
             raise serializers.ValidationError("Student not found.")
-        if not supervisor or not student.supervisors.filter(pk=supervisor.pk).exists():
+        try:
+            has_access = student.internships.filter(supervisor=supervisor).exists()
+        except (OperationalError, ProgrammingError):
+            has_access = student.supervisors.filter(pk=supervisor.pk).exists() if supervisor else False
+        if not supervisor or not has_access:
             raise serializers.ValidationError("You can only appraise students assigned to you.")
 
         existing_appraisal = getattr(student, "appraisal", None)

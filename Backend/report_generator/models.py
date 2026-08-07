@@ -7,7 +7,7 @@ from django.db import models
 class Company(models.Model):
     company_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
-    is_active = models.BooleanField(default=True)
+    location = models.CharField(max_length=255, default="Kumasi")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -23,6 +23,71 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CompanyRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
+    request_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    location = models.CharField(max_length=255, blank=True)
+    note = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    requested_by = models.ForeignKey(
+        "Student",
+        on_delete=models.CASCADE,
+        related_name="company_requests",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_company_requests",
+        null=True,
+        blank=True,
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
+class ActivityLog(models.Model):
+    activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="activity_notifications",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="triggered_activities",
+        null=True,
+        blank=True,
+    )
+    activity_type = models.CharField(max_length=80)
+    title = models.CharField(max_length=255)
+    message = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.activity_type} -> {self.recipient_id}"
 
 
 class Student(models.Model):
@@ -136,6 +201,13 @@ class Internship(models.Model):
     internship_position = models.CharField(max_length=150)
     internship_supervisor = models.CharField(max_length=150, blank=True)
     internship_supervisor_email = models.EmailField(blank=True)
+    supervisor = models.ForeignKey(
+        "Supervisor",
+        on_delete=models.SET_NULL,
+        related_name="internships",
+        null=True,
+        blank=True,
+    )
     internship_duration = models.CharField(max_length=100, blank=True)
     department = models.CharField(max_length=150, blank=True)
     description = models.TextField(blank=True)
@@ -199,7 +271,7 @@ class Report(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="reports")
     report_file = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="generating")
-    grade = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     supervisor_feedback = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

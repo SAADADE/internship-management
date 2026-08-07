@@ -2,113 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
-  ZoomIn, ZoomOut, ChevronLeft, ChevronRight, MessageSquare, Star, Download
+  MessageSquare, Download
 } from 'lucide-react'
 import { getAdminReportDetail, updateAdminReportDetail } from '../api'
-
-function ReportPreview({ report }) {
-  const [page, setPage] = useState(1)
-  const [zoom, setZoom] = useState(100)
-  const totalPages = 3
-
-  return (
-    <div className="flex h-full flex-col bg-gray-100">
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-40"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span className="min-w-[70px] text-center text-xs text-gray-500">
-            Page <strong>{page}</strong> / {totalPages}
-          </span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-40"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setZoom((z) => Math.max(60, z - 10))} className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors hover:bg-gray-200">
-            <ZoomOut size={13} />
-          </button>
-          <span className="min-w-[40px] text-center font-mono text-xs text-gray-500">{zoom}%</span>
-          <button onClick={() => setZoom((z) => Math.min(150, z + 10))} className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors hover:bg-gray-200">
-            <ZoomIn size={13} />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-1 justify-center overflow-auto p-6">
-        <div className="overflow-hidden rounded-lg bg-white shadow-xl transition-all duration-200" style={{ width: `${zoom * 5.6}px`, maxWidth: '100%' }}>
-          <div className="bg-primary-900 p-6 text-white">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500">
-                <FileText size={18} />
-              </div>
-              <div>
-                <h3 className="font-heading text-base font-bold">{report.title}</h3>
-                <p className="text-xs text-primary-300">{report.studentName} — {report.studentId}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div><span className="text-primary-400">Company:</span> <span className="text-primary-100">{report.company}</span></div>
-              <div><span className="text-primary-400">Submitted:</span> <span className="text-primary-100">{new Date(report.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-            </div>
-          </div>
-
-          <div className="space-y-5 p-6">
-            {page === 1 && (
-              <>
-                <div>
-                  <h4 className="mb-2 border-b border-gray-100 pb-2 font-heading text-sm font-bold text-gray-800">1. Summary</h4>
-                  <p className="text-xs leading-relaxed text-gray-600">{report.summary}</p>
-                </div>
-                <div>
-                  <h4 className="mb-2 border-b border-gray-100 pb-2 font-heading text-sm font-bold text-gray-800">2. Key Highlights</h4>
-                  <ul className="ml-4 list-disc space-y-1 text-xs leading-relaxed text-gray-600">
-                    <li>Strong contribution to workplace tasks</li>
-                    <li>Demonstrated professional growth</li>
-                    <li>Clear reflection on learning outcomes</li>
-                  </ul>
-                </div>
-              </>
-            )}
-            {page === 2 && (
-              <div>
-                <h4 className="mb-2 border-b border-gray-100 pb-2 font-heading text-sm font-bold text-gray-800">3. Report Details</h4>
-                <div className="space-y-2 text-xs leading-relaxed text-gray-600">
-                  {report.sections.map((section, index) => (
-                    <p key={index}>{section}</p>
-                  ))}
-                </div>
-              </div>
-            )}
-            {page === 3 && (
-              <div>
-                <h4 className="mb-2 border-b border-gray-100 pb-2 font-heading text-sm font-bold text-gray-800">4. Closing Reflection</h4>
-                <p className="text-xs leading-relaxed text-gray-600">
-                  The internship experience strengthened the student’s professional readiness and provided meaningful exposure to real-world responsibilities. The report reflects both practical learning and thoughtful self-evaluation.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function AdminReportView() {
   const navigate = useNavigate()
   const { id } = useParams()
   const [comment, setComment] = useState('')
-  const [grade, setGrade] = useState('')
+  const [score, setScore] = useState('')
   const [status, setStatus] = useState('Approved')
   const [submitting, setSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -117,13 +19,16 @@ export default function AdminReportView() {
   const [error, setError] = useState('')
   const [report, setReport] = useState(null)
 
+  const hasReportFile = Boolean(report?.reportFileSubmitted && report?.reportDownloadUrl)
+  const canPreviewPdf = Boolean(report?.reportPreviewUrl)
+
   useEffect(() => {
     const loadReport = async () => {
       try {
         const payload = await getAdminReportDetail(id)
         setReport(payload)
         setComment(payload.feedback || '')
-        setGrade(payload.grade || '')
+        setScore(payload.grade || '')
         if (payload.status === 'graded') {
           setStatus('Approved')
         } else {
@@ -140,13 +45,25 @@ export default function AdminReportView() {
   }, [id])
 
   const handleSubmit = async () => {
-    if (!comment.trim()) return alert('Please add feedback before submitting.')
+    if (!comment.trim()) {
+      alert('Please add feedback before submitting.')
+      return
+    }
+
+    if (score !== '') {
+      const numericScore = Number(score)
+      if (Number.isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
+        alert('Score must be between 0 and 100.')
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
       const payload = await updateAdminReportDetail(id, {
         decision: status,
         comment,
-        grade,
+        grade: score,
       })
       setReport(payload)
       setSubmitted(true)
@@ -194,7 +111,7 @@ export default function AdminReportView() {
         </p>
         <p className="mb-6 text-sm">
           Status set to: <span className={`font-semibold ${status === 'Approved' ? 'text-emerald-600' : 'text-amber-600'}`}>{status}</span>
-          {grade && <> · Grade: <span className="font-semibold text-primary-700">{grade}</span></>}
+          {score !== '' && <> · Score: <span className="font-semibold text-primary-700">{score}/100</span></>}
         </p>
         <button onClick={() => navigate('/admin/reports')} className="btn-primary">
           ← Back to Reports
@@ -221,21 +138,49 @@ export default function AdminReportView() {
             <span className="flex items-center gap-1"><Building2 size={12} /> {report.company}</span>
             <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(report.submittedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           </div>
-          {report.reportFileSubmitted && report.reportDownloadUrl && (
-            <a
-              href={report.reportDownloadUrl}
-              className="inline-flex items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-100"
-            >
-              <Download size={12} /> Download file
-            </a>
-          )}
           <span className="badge-warning ml-2">{report.status === 'graded' ? 'Reviewed' : 'Pending Review'}</span>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-hidden border-r border-gray-200">
-          <ReportPreview report={report} />
+        <div className="flex flex-1 flex-col overflow-hidden border-r border-gray-200 bg-gradient-to-br from-primary-50 to-white p-5">
+          <div className="mb-3 flex flex-shrink-0 items-center justify-between rounded-xl border border-primary-100 bg-white/80 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Submitted Report Document</p>
+              <p className="text-xs text-gray-500">Preview directly in-app</p>
+            </div>
+            {hasReportFile ? (
+              <a
+                href={report.reportDownloadUrl}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-800"
+              >
+                <Download size={15} /> Download
+              </a>
+            ) : null}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {hasReportFile && canPreviewPdf ? (
+              <iframe
+                title="Submitted report preview"
+                src={`${report.reportPreviewUrl}#view=FitH`}
+                className="h-full w-full"
+              />
+            ) : hasReportFile ? (
+              <div className="flex h-full items-center justify-center p-6 text-center">
+                <div className="max-w-md rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  <p className="font-semibold">Preview unavailable for this file type.</p>
+                  <p className="mt-1">Only PDF reports can be viewed directly in the app. Use the Download button above to open this file.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center p-6 text-center">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+                  No uploaded report file is attached yet.
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex w-96 flex-shrink-0 flex-col overflow-hidden bg-white">
@@ -279,22 +224,17 @@ export default function AdminReportView() {
             </div>
 
             <div>
-              <label className="form-label flex items-center gap-1.5">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-100">
-                  <Star size={11} className="text-amber-600" />
-                </span>
-                Grade / Score
-              </label>
-              <select className="form-input" value={grade} onChange={(e) => setGrade(e.target.value)}>
-                <option value="">Select grade...</option>
-                <option value="4.00">A (4.00)</option>
-                <option value="3.50">B+ (3.50)</option>
-                <option value="3.00">B (3.00)</option>
-                <option value="2.50">C+ (2.50)</option>
-                <option value="2.00">C (2.00)</option>
-                <option value="1.00">D (1.00)</option>
-                <option value="0.00">F (0.00)</option>
-              </select>
+              <label className="form-label">Score (0 - 100)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={score}
+                onChange={(e) => setScore(e.target.value)}
+                className="form-input"
+                placeholder="e.g. 84"
+              />
             </div>
 
             <div>

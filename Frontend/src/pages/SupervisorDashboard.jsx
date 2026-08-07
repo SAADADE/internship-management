@@ -215,7 +215,7 @@ export default function SupervisorDashboard() {
                 <tr>
                   <td colSpan={6} className="text-center py-14 text-gray-400 text-sm font-body">
                     <FileText size={32} className="mx-auto mb-2 opacity-30" />
-                    No submissions match your filter
+                    No submissions from your assigned internships match your filter
                   </td>
                 </tr>
               )}

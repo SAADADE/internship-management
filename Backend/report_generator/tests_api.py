@@ -446,18 +446,18 @@ class BackendApiTests(TestCase):
         mock_generate.assert_called_once()
         mock_build.assert_called_once()
 
-    def test_student_companies_endpoint_returns_only_active_companies(self):
+    def test_student_companies_endpoint_returns_companies(self):
         user, _ = self.create_student_user()
         self.client.force_authenticate(user)
-        active_company = Company.objects.create(name="Alpha Logistics Ltd", is_active=True)
-        Company.objects.create(name="Archived Co", is_active=False)
+        alpha_company = Company.objects.create(name="Alpha Logistics Ltd", location="Kumasi")
+        Company.objects.create(name="Archived Co", location="Accra")
 
         response = self.client.get("/api/student/companies/")
 
         self.assertEqual(response.status_code, 200)
         returned_names = [item["name"] for item in response.data]
-        self.assertIn(active_company.name, returned_names)
-        self.assertNotIn("Archived Co", returned_names)
+        self.assertIn(alpha_company.name, returned_names)
+        self.assertIn("Archived Co", returned_names)
 
     def test_non_admin_cannot_manage_companies(self):
         student_user, _ = self.create_student_user()
@@ -472,7 +472,7 @@ class BackendApiTests(TestCase):
 
         create_response = self.client.post(
             "/api/admin/companies/",
-            {"name": "NextWave Manufacturing", "is_active": True},
+            {"name": "NextWave Manufacturing", "location": "Kumasi"},
             format="json",
         )
         self.assertEqual(create_response.status_code, 201)
@@ -480,11 +480,11 @@ class BackendApiTests(TestCase):
 
         update_response = self.client.patch(
             f"/api/admin/companies/{company_id}/",
-            {"is_active": False},
+            {"location": "Accra"},
             format="json",
         )
         self.assertEqual(update_response.status_code, 200)
-        self.assertFalse(update_response.data["is_active"])
+        self.assertEqual(update_response.data["location"], "Accra")
 
         delete_response = self.client.delete(f"/api/admin/companies/{company_id}/")
         self.assertEqual(delete_response.status_code, 204)
@@ -497,7 +497,7 @@ class BackendApiTests(TestCase):
 
         response = self.client.post(
             "/api/admin/companies/",
-            {"name": "acme resources"},
+            {"name": "acme resources", "location": "Kumasi"},
             format="json",
         )
 
@@ -653,7 +653,14 @@ class BackendApiTests(TestCase):
         supervisor_user, supervisor = self.create_supervisor_user()
         _, assigned_student = self.create_student_user(username="assigned-student", email="assigned@example.com")
         _, other_student = self.create_student_user(username="other-student", email="other@example.com")
-        assigned_student.supervisors.add(supervisor)
+        Internship.objects.create(
+            student=assigned_student,
+            company_name="Assigned Corp",
+            internship_position="Software Engineering Intern",
+            internship_supervisor="Dr. Supervisor",
+            internship_supervisor_email=supervisor.email,
+            supervisor=supervisor,
+        )
 
         self.client.force_authenticate(supervisor_user)
 
@@ -760,3 +767,50 @@ class BackendApiTests(TestCase):
 
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(Appraisal.objects.filter(student=assigned_student).exists())
+
+    def test_supervisor_reports_only_include_logs_for_supervisor_internships(self):
+        supervisor_user, supervisor = self.create_supervisor_user(username="supervisor-scope", email="scope@example.com")
+        _, student = self.create_student_user(username="student-scope", email="student-scope@example.com")
+        _, other_supervisor = self.create_supervisor_user(username="other-scope", email="other-scope@example.com")
+
+        internship_owned = Internship.objects.create(
+            student=student,
+            company_name="Owned Corp",
+            internship_position="Intern",
+            internship_supervisor_email=supervisor.email,
+            supervisor=supervisor,
+        )
+        internship_other = Internship.objects.create(
+            student=student,
+            company_name="Other Corp",
+            internship_position="Intern",
+            internship_supervisor_email=other_supervisor.email,
+            supervisor=other_supervisor,
+        )
+
+        owned_log = Log.objects.create(
+            student=student,
+            internship=internship_owned,
+            log_text="Owned internship log",
+            status="submitted",
+            week_number=1,
+            log_date="2026-08-01",
+            company_name="Owned Corp",
+        )
+        Log.objects.create(
+            student=student,
+            internship=internship_other,
+            log_text="Other internship log",
+            status="submitted",
+            week_number=2,
+            log_date="2026-08-08",
+            company_name="Other Corp",
+        )
+
+        self.client.force_authenticate(supervisor_user)
+        response = self.client.get("/api/supervisor/reports/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(str(response.data[0]["id"]), str(owned_log.log_id))
+        self.assertEqual(response.data[0]["company"], "Owned Corp")

@@ -25,6 +25,19 @@ function mapStatusToDecision(status) {
   return status === 'Approved' ? 'approved' : 'rejected'
 }
 
+function normalizeScore(score) {
+  if (score === null || score === undefined || score === '') return ''
+  const numeric = Number(score)
+  if (!Number.isFinite(numeric)) return ''
+  const rounded = Math.round(numeric)
+
+  // Backward compatibility for previously saved 0-100 scores.
+  if (rounded > 5) {
+    return String(Math.max(1, Math.min(5, Math.round(rounded / 20))))
+  }
+  return String(Math.max(1, Math.min(5, rounded)))
+}
+
 export default function ReportReview() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -56,7 +69,7 @@ export default function ReportReview() {
           setStatus(mapDecisionToStatus(response.feedback.decision))
         }
         if (response?.feedback?.score !== null && response?.feedback?.score !== undefined) {
-          setGrade(String(response.feedback.score))
+          setGrade(normalizeScore(response.feedback.score))
         }
       } catch (err) {
         if (!active) return
@@ -125,12 +138,19 @@ export default function ReportReview() {
   const handleSubmit = async () => {
     if (!comment.trim()) return
 
+    const normalizedGrade = normalizeScore(grade)
+    if (grade !== '' && normalizedGrade === '') {
+      setLoadingError('Score must be a number between 1 and 5.')
+      return
+    }
+
     setSubmitting(true)
+    setLoadingError('')
     try {
       await updateSupervisorLog(id, {
         decision: mapStatusToDecision(status),
         comment: comment.trim(),
-        score: grade === '' ? null : Number(grade),
+        score: normalizedGrade === '' ? null : Number(normalizedGrade),
       })
       setSubmitted(true)
     } catch (err) {
@@ -318,16 +338,30 @@ export default function ReportReview() {
                 </span>
                 Grade / Score
               </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
+              <select
                 className="form-input"
                 value={grade}
                 onChange={(event) => setGrade(event.target.value)}
-                placeholder="Enter score"
-              />
+              >
+                <option value="">No score</option>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={String(value)}>
+                    {`${value} ${value === 1 ? 'Star' : 'Stars'}`}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-2 flex items-center gap-1">
+                {[...Array(5)].map((_, index) => {
+                  const selectedGrade = Number(grade) || 0
+                  return (
+                    <Star
+                      key={index}
+                      size={16}
+                      className={index < selectedGrade ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}
+                    />
+                  )
+                })}
+              </div>
             </div>
 
             <div>

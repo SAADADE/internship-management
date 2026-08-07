@@ -177,7 +177,7 @@ export default function SupervisorReports() {
           <div className="p-12 text-center">
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 font-medium">No reports found</p>
-            <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
+            <p className="text-sm text-gray-400">There are no reports for your assigned internships matching the current filter.</p>
           </div>
         ) : (
           <table className="w-full">

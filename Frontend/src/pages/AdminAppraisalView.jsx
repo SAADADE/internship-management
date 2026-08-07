@@ -11,12 +11,41 @@ const RATING_LABELS = {
   '1': 'Poor (1)'
 }
 
+function isProbablyBase64(value) {
+  if (!value || typeof value !== 'string') return false
+  const compact = value.replace(/\s+/g, '')
+  if (!compact) return false
+  return /^[A-Za-z0-9+/=_-]+$/.test(compact)
+}
+
+function toSignatureImageSrc(signatureValue) {
+  if (!signatureValue || typeof signatureValue !== 'string') return null
+
+  const trimmed = signatureValue.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('data:image/')) return trimmed
+
+  if (!isProbablyBase64(trimmed)) return null
+
+  const normalized = trimmed.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/')
+
+  try {
+    atob(normalized)
+    return `data:image/png;base64,${normalized}`
+  } catch {
+    return null
+  }
+}
+
 export default function AdminAppraisalView() {
   const navigate = useNavigate()
   const { id } = useParams()
   const [appraisal, setAppraisal] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const signatureImageSrc = toSignatureImageSrc(appraisal?.signature)
 
   useEffect(() => {
     const loadAppraisal = async () => {
@@ -124,7 +153,15 @@ export default function AdminAppraisalView() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-800">Signature</p>
-              <p className="mt-1 text-sm text-gray-600">{appraisal.signature}</p>
+              {signatureImageSrc ? (
+                <img
+                  src={signatureImageSrc}
+                  alt="Supervisor signature"
+                  className="mt-2 h-20 w-auto rounded-lg border border-gray-200 bg-white p-2 object-contain"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-gray-600">{appraisal.signature || 'No signature provided.'}</p>
+              )}
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-800">Date</p>

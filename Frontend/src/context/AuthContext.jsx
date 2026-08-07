@@ -1,5 +1,11 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { loginUser } from '../api'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import {
+  getNotificationSummary,
+  getNotifications,
+  loginUser,
+  markAllNotificationsRead,
+  markNotificationRead as markNotificationReadApi,
+} from '../api'
 import { saveProfile, getStoredProfile, clearProfile } from '../utils/storage'
 
 const AuthContext = createContext(null)
@@ -15,11 +21,8 @@ export function AuthProvider({ children }) {
       return null
     }
   })
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'Your report has been reviewed', time: '2 min ago', read: false },
-    { id: 2, text: 'Submission deadline approaching — 3 days left', time: '1 hr ago', read: false },
-    { id: 3, text: 'New feedback received from Dr Theresa', time: '3 hrs ago', read: true },
-  ])
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -28,6 +31,56 @@ export function AuthProvider({ children }) {
       window.localStorage.setItem('academicIQ_user', JSON.stringify(user))
     } else {
       window.localStorage.removeItem('academicIQ_user')
+    }
+  }, [user])
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user) return []
+    const data = await getNotifications()
+    const mapped = Array.isArray(data)
+      ? data.map((item) => ({
+          id: item.id,
+          text: item.message || item.title,
+          time: item.time,
+          read: Boolean(item.read),
+          title: item.title,
+          type: item.type,
+          createdAt: item.created_at,
+          metadata: item.metadata || {},
+        }))
+      : []
+    setNotifications(mapped)
+    setUnreadCount(mapped.filter((item) => !item.read).length)
+    return mapped
+  }, [user])
+
+  useEffect(() => {
+    if (!user) {
+      setNotifications([])
+      setUnreadCount(0)
+      return
+    }
+
+    let isMounted = true
+
+    const loadSummary = async () => {
+      try {
+        const summary = await getNotificationSummary()
+        if (!isMounted) return
+        setUnreadCount(Number(summary?.unread_count || 0))
+      } catch {
+        if (isMounted) {
+          setUnreadCount((previous) => previous)
+        }
+      }
+    }
+
+    loadSummary()
+    const intervalId = window.setInterval(loadSummary, 30000)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(intervalId)
     }
   }, [user])
 
@@ -87,11 +140,40 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const markAllRead = () =>
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  const markAllRead = useCallback(async () => {
+    try {
+      await markAllNotificationsRead()
+    } finally {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+      setUnreadCount(0)
+    }
+  }, [])
+
+  const markNotificationRead = useCallback(async (notificationId) => {
+    if (!notificationId) return
+    try {
+      await markNotificationReadApi(notificationId)
+    } finally {
+      setNotifications((prev) => prev.map((item) => (
+        item.id === notificationId ? { ...item, read: true } : item
+      )))
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    }
+  }, [])
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, notifications, markAllRead }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        notifications,
+        unreadCount,
+        refreshNotifications,
+        markAllRead,
+        markNotificationRead,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

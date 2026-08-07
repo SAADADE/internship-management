@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { User, Mail, Shield, Edit3, Save, X, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { changePassword, updateStudentProfile } from '../api'
+import { changePassword, getCurrentUserProfile, updateStudentProfile } from '../api'
 
 export default function Profile() {
   const { user } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [profileError, setProfileError] = useState('')
+  const [profileData, setProfileData] = useState(null)
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -25,21 +28,46 @@ export default function Profile() {
   })
   const [passwordMessage, setPasswordMessage] = useState('')
 
-  useEffect(() => {
+  const canEditProfile = (profileData?.role || user?.role) === 'student'
+
+  const populateForm = (profile) => {
     setFormData({
-      name: user?.name || '',
-      email: user?.email || '',
-      role: user?.role || '',
-      faculty: user?.profile?.faculty || '',
-      department: user?.profile?.department || '',
-      programme: user?.profile?.programme || '',
-      level: user?.profile?.level || '',
-      institution_name: user?.profile?.institution_name || '',
-      phone_number: user?.profile?.phone_number || '',
+      name: profile?.name || '',
+      email: profile?.email || '',
+      role: profile?.role || '',
+      faculty: profile?.faculty || '',
+      department: profile?.department || '',
+      programme: profile?.programme || '',
+      level: profile?.level || '',
+      institution_name: profile?.institution_name || '',
+      phone_number: profile?.phone_number || '',
     })
+  }
+
+  const loadProfile = async () => {
+    setLoading(true)
+    setProfileError('')
+    try {
+      const data = await getCurrentUserProfile()
+      setProfileData(data)
+      populateForm(data)
+    } catch (err) {
+      setProfileError(err.message || 'Unable to fetch profile information.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProfile()
   }, [user])
 
   const handleSave = async () => {
+    if (!canEditProfile) {
+      setIsEditing(false)
+      return
+    }
+
     try {
       await updateStudentProfile({
         sch_email: formData.email,
@@ -52,6 +80,7 @@ export default function Profile() {
         institution_name: formData.institution_name,
         phone_number: formData.phone_number,
       })
+      await loadProfile()
       setIsEditing(false)
     } catch (err) {
       setPasswordMessage(err.message || 'Unable to save profile.')
@@ -59,11 +88,7 @@ export default function Profile() {
   }
 
   const handleCancel = () => {
-    setFormData({
-      name: user?.name || '',
-      email: user?.email || '',
-      role: user?.role || ''
-    })
+    populateForm(profileData || user || {})
     setIsEditing(false)
   }
 
@@ -105,6 +130,11 @@ export default function Profile() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+      {profileError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {profileError}
+        </div>
+      )}
 
       {/* Header */}
       <div className="card p-6">
@@ -113,8 +143,8 @@ export default function Profile() {
             {user?.avatar}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 font-heading">{user?.name}</h1>
-            <p className="text-gray-500 capitalize">{user?.role} Account</p>
+            <h1 className="text-2xl font-bold text-gray-900 font-heading">{formData.name || user?.name}</h1>
+            <p className="text-gray-500 capitalize">{(profileData?.role || user?.role)} Account</p>
           </div>
         </div>
       </div>
@@ -127,9 +157,10 @@ export default function Profile() {
             <button
               onClick={() => setIsEditing(true)}
               className="btn-primary text-sm"
+              disabled={!canEditProfile || loading}
             >
               <Edit3 size={14} className="mr-2" />
-              Edit Profile
+              {canEditProfile ? 'Edit Profile' : 'View Only'}
             </button>
           ) : (
             <div className="flex gap-2">
@@ -159,7 +190,7 @@ export default function Profile() {
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              {isEditing ? (
+              {isEditing && canEditProfile ? (
                 <input
                   type="text"
                   value={formData.name}
@@ -167,7 +198,7 @@ export default function Profile() {
                   className="input-field"
                 />
               ) : (
-                <p className="text-gray-900">{user?.name}</p>
+                <p className="text-gray-900">{formData.name || user?.name || '-'}</p>
               )}
             </div>
           </div>
@@ -179,7 +210,7 @@ export default function Profile() {
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-              {isEditing ? (
+              {isEditing && canEditProfile ? (
                 <input
                   type="email"
                   value={formData.email}
@@ -187,13 +218,13 @@ export default function Profile() {
                   className="input-field"
                 />
               ) : (
-                <p className="text-gray-900">{user?.email}</p>
+                <p className="text-gray-900">{formData.email || user?.email || '-'}</p>
               )}
             </div>
           </div>
 
           {/* Additional profile fields */}
-          {isEditing ? (
+          {isEditing && canEditProfile ? (
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
@@ -225,6 +256,7 @@ export default function Profile() {
               <div><span className="font-semibold text-gray-700">Faculty:</span> {formData.faculty || '—'}</div>
               <div><span className="font-semibold text-gray-700">Department:</span> {formData.department || '—'}</div>
               <div><span className="font-semibold text-gray-700">Programme:</span> {formData.programme || '—'}</div>
+              <div><span className="font-semibold text-gray-700">Level:</span> {formData.level || '—'}</div>
               <div><span className="font-semibold text-gray-700">Institution:</span> {formData.institution_name || '—'}</div>
               <div><span className="font-semibold text-gray-700">Phone Number:</span> {formData.phone_number || '—'}</div>
             </div>
@@ -237,7 +269,7 @@ export default function Profile() {
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <p className="text-gray-900 capitalize">{user?.role}</p>
+              <p className="text-gray-900 capitalize">{profileData?.role || user?.role}</p>
               <p className="text-xs text-gray-500 mt-1">
                 Role cannot be changed from this page. Contact administrator if needed.
               </p>
@@ -318,10 +350,10 @@ export default function Profile() {
         <h2 className="text-lg font-semibold text-gray-900 font-heading mb-4">Account Status</h2>
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-sm text-gray-700">Account is active</span>
+          <span className="text-sm text-gray-700">{loading ? 'Loading account status...' : 'Account is active'}</span>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Last login: {new Date().toLocaleDateString('en-GB', {
+          Last login: {new Date(profileData?.last_login || Date.now()).toLocaleDateString('en-GB', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',

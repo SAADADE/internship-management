@@ -5,8 +5,8 @@ from .models import Company, Internship, InternshipReportDraft, Log, Report, Rev
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ("name", "is_active", "created_by", "created_at")
-    list_filter = ("is_active", "created_at")
+    list_display = ("name", "location", "created_by", "created_at")
+    list_filter = ("location", "created_at")
     search_fields = ("name", "created_by__username", "created_by__email")
 
 

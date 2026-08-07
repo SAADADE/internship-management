@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import StudentDashboard from './pages/StudentDashboard'
 import InternshipRegistration from './pages/InternshipRegistration'
+import CompanyRequest from './pages/CompanyRequest'
 import LogsUpload from './pages/LogsUpload'
 import ViewReports from './pages/ViewReports'
 import SupervisorDashboard from './pages/SupervisorDashboard'
@@ -62,6 +63,11 @@ export default function App() {
           <Route path="/internship/register" element={
             <ProtectedRoute roles={['student']}>
               <Layout><InternshipRegistration /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/internship/company-request" element={
+            <ProtectedRoute roles={['student']}>
+              <Layout><CompanyRequest /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/reports/upload" element={

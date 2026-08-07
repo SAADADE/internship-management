@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, Building2, MapPin, User, Mail, Calendar } from 'lucide-react'
+import { CheckCircle, Building2, User, Mail, Calendar } from 'lucide-react'
 import { createStudentInternship, getStudentCompanies } from '../api'
 import { getStoredProfile, saveInternship } from '../utils/storage'
 
 export default function InternshipRegistration() {
   const [form, setForm] = useState({
-    companyName: '', location: '', supervisorName: '', supervisorEmail: '',
+    companyName: '', supervisorName: '', supervisorEmail: '',
     startDate: '', endDate: '', department: '', description: '',
   })
   const [profile, setProfile] = useState(getStoredProfile())
@@ -63,7 +63,6 @@ export default function InternshipRegistration() {
   const validate = () => {
     const e = {}
     if (!form.companyName) e.companyName = 'Company name is required'
-    if (!form.location) e.location = 'Location is required'
     if (!form.supervisorName) e.supervisorName = 'Supervisor name is required'
     if (!form.startDate) e.startDate = 'Start date is required'
     if (!form.endDate) e.endDate = 'End date is required'
@@ -78,9 +77,10 @@ export default function InternshipRegistration() {
     if (Object.keys(e2).length) return setErrors(e2)
     setLoading(true)
     try {
+      const selectedCompany = companyOptions.find((company) => company.name === form.companyName)
       const payload = {
         company_name: form.companyName,
-        company_address: form.location,
+        company_address: selectedCompany?.location || '',
         internship_position: form.department || 'Internship',
         internship_supervisor: form.supervisorName,
         internship_supervisor_email: form.supervisorEmail,
@@ -119,7 +119,7 @@ export default function InternshipRegistration() {
         </p>
         <div className="card p-5 text-left space-y-2 mb-6">
           <p className="text-sm text-gray-500"><span className="font-semibold text-gray-700">Company:</span> {form.companyName}</p>
-          <p className="text-sm text-gray-500"><span className="font-semibold text-gray-700">Location:</span> {form.location}</p>
+          <p className="text-sm text-gray-500"><span className="font-semibold text-gray-700">Location:</span> {companyOptions.find((company) => company.name === form.companyName)?.location || '-'}</p>
           <p className="text-sm text-gray-500"><span className="font-semibold text-gray-700">Duration:</span> {form.startDate} → {form.endDate}</p>
         </div>
         <button onClick={() => setSubmitted(false)} className="btn-secondary">
@@ -166,6 +166,11 @@ export default function InternshipRegistration() {
                   ))}
                 </select>
                 {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
+                {form.companyName && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Location: {companyOptions.find((company) => company.name === form.companyName)?.location || '-'}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="form-label">Department / Unit</label>
@@ -177,23 +182,6 @@ export default function InternshipRegistration() {
                 />
               </div>
             </div>
-          </div>
-
-          {/* Location */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center">
-                <MapPin size={15} className="text-sky-700" />
-              </div>
-              <h3 className="font-heading font-semibold text-gray-800">Location</h3>
-            </div>
-            <input
-              className={`form-input ${errors.location ? 'border-red-300' : ''}`}
-              placeholder="e.g. Accra, Greater Accra Region"
-              value={form.location}
-              onChange={e => set('location', e.target.value)}
-            />
-            {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
           </div>
 
           {/* Supervisor */}

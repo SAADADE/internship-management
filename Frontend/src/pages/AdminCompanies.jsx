@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Briefcase, Plus, Search, Trash2, RefreshCw } from 'lucide-react'
-import { createAdminCompany, deleteAdminCompany, getAdminCompanies, updateAdminCompany } from '../api'
+import {
+  createAdminCompany,
+  deleteAdminCompany,
+  getAdminCompanies,
+  getAdminCompanyRequests,
+  reviewAdminCompanyRequest,
+} from '../api'
 
 export default function AdminCompanies() {
   const [companies, setCompanies] = useState([])
   const [search, setSearch] = useState('')
   const [newCompanyName, setNewCompanyName] = useState('')
-  const [newCompanyActive, setNewCompanyActive] = useState(true)
+  const [newCompanyLocation, setNewCompanyLocation] = useState('')
+  const [companyRequests, setCompanyRequests] = useState([])
   const [loading, setLoading] = useState(false)
+  const [requestsLoading, setRequestsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -26,43 +34,56 @@ export default function AdminCompanies() {
 
   useEffect(() => {
     loadCompanies('')
+    loadCompanyRequests()
   }, [])
+
+  const loadCompanyRequests = async () => {
+    setRequestsLoading(true)
+    setError('')
+    try {
+      const data = await getAdminCompanyRequests('pending')
+      setCompanyRequests(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err.message || 'Unable to load company requests.')
+    } finally {
+      setRequestsLoading(false)
+    }
+  }
 
   const filteredCompanies = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return companies
-    return companies.filter((company) => company.name.toLowerCase().includes(term))
+    return companies.filter((company) => {
+      const name = (company.name || '').toLowerCase()
+      const location = (company.location || '').toLowerCase()
+      return name.includes(term) || location.includes(term)
+    })
   }, [companies, search])
 
   const handleCreate = async (event) => {
     event.preventDefault()
     const name = newCompanyName.trim()
+    const location = newCompanyLocation.trim()
     if (!name) {
       setError('Company name is required.')
+      return
+    }
+    if (!location) {
+      setError('Company location is required.')
       return
     }
 
     setSaving(true)
     setError('')
     try {
-      await createAdminCompany({ name, is_active: newCompanyActive })
+      await createAdminCompany({ name, location })
       setNewCompanyName('')
-      setNewCompanyActive(true)
+      setNewCompanyLocation('')
       await loadCompanies(search)
     } catch (err) {
       setError(err.message || 'Unable to create company.')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleToggleActive = async (company) => {
-    setError('')
-    try {
-      await updateAdminCompany(company.id, { is_active: !company.is_active })
-      await loadCompanies(search)
-    } catch (err) {
-      setError(err.message || 'Unable to update company.')
     }
   }
 
@@ -79,6 +100,25 @@ export default function AdminCompanies() {
     }
   }
 
+  const handleRequestReview = async (requestItem, status) => {
+    const promptText = status === 'approved'
+      ? 'Optional approval note for student (leave blank to skip):'
+      : 'Optional rejection reason for student (leave blank to skip):'
+    const adminNote = window.prompt(promptText, '')
+    if (adminNote === null) return
+
+    setError('')
+    try {
+      await reviewAdminCompanyRequest(requestItem.id, {
+        status,
+        admin_note: adminNote,
+      })
+      await Promise.all([loadCompanyRequests(), loadCompanies(search)])
+    } catch (err) {
+      setError(err.message || 'Unable to review request.')
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -88,7 +128,10 @@ export default function AdminCompanies() {
         </div>
         <button
           type="button"
-          onClick={() => loadCompanies(search)}
+          onClick={() => {
+            loadCompanies(search)
+            loadCompanyRequests()
+          }}
           disabled={loading}
           className="btn-secondary"
         >
@@ -96,8 +139,76 @@ export default function AdminCompanies() {
         </button>
       </div>
 
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-xl font-semibold text-gray-900">Pending Company Requests</h2>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+            {companyRequests.length} Pending
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="table-header text-left">Company</th>
+                <th className="table-header text-left">Requested By</th>
+                <th className="table-header text-left">Location</th>
+                <th className="table-header text-left">Note</th>
+                <th className="table-header text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {companyRequests.map((item) => (
+                <tr key={item.id}>
+                  <td className="table-cell font-medium text-gray-800">{item.name}</td>
+                  <td className="table-cell text-sm text-gray-600">
+                    <p className="font-medium text-gray-700">{item.requestedBy?.name || '-'}</p>
+                    <p>{item.requestedBy?.index_number || '-'}</p>
+                  </td>
+                  <td className="table-cell text-gray-600">{item.location || '-'}</td>
+                  <td className="table-cell text-gray-600">{item.note || '-'}</td>
+                  <td className="table-cell text-right">
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRequestReview(item, 'approved')}
+                        className="rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-200"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRequestReview(item, 'rejected')}
+                        className="rounded-lg bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-200"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!requestsLoading && companyRequests.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="table-cell text-center text-gray-500 py-8">
+                    No pending requests.
+                  </td>
+                </tr>
+              )}
+              {requestsLoading && (
+                <tr>
+                  <td colSpan={5} className="table-cell text-center text-gray-500 py-8">
+                    Loading requests...
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="card p-5">
-        <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+        <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
           <div>
             <label className="form-label">Company Name</label>
             <input
@@ -107,15 +218,15 @@ export default function AdminCompanies() {
               placeholder="e.g. Tech Innovation Ltd"
             />
           </div>
-          <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 bg-white">
+          <div>
+            <label className="form-label">Location</label>
             <input
-              type="checkbox"
-              checked={newCompanyActive}
-              onChange={(e) => setNewCompanyActive(e.target.checked)}
-              className="h-4 w-4 rounded accent-primary-600"
+              className="form-input"
+              value={newCompanyLocation}
+              onChange={(e) => setNewCompanyLocation(e.target.value)}
+              placeholder="e.g. Kumasi"
             />
-            Active
-          </label>
+          </div>
           <button type="submit" disabled={saving} className="btn-primary">
             <Plus size={14} /> {saving ? 'Saving...' : 'Add Company'}
           </button>
@@ -144,7 +255,7 @@ export default function AdminCompanies() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="table-header text-left">Company</th>
-                <th className="table-header text-left">Status</th>
+                <th className="table-header text-left">Location</th>
                 <th className="table-header text-left">Added By</th>
                 <th className="table-header text-right">Actions</th>
               </tr>
@@ -157,15 +268,7 @@ export default function AdminCompanies() {
                       <Briefcase size={14} className="text-primary-600" /> {company.name}
                     </div>
                   </td>
-                  <td className="table-cell">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(company)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${company.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700'}`}
-                    >
-                      {company.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
+                  <td className="table-cell text-gray-600">{company.location || '-'}</td>
                   <td className="table-cell text-sm text-gray-500">
                     {company.createdBy?.username || 'System'}
                   </td>
