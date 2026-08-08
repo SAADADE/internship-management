@@ -11,13 +11,9 @@ except ImportError:  # pragma: no cover - local editor fallback before deps are 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-me-in-production")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
-
-render_external_url = os.getenv("RENDER_EXTERNAL_URL", "")
-if render_external_url:
-    ALLOWED_HOSTS.append(render_external_url.replace("https://", "").replace("http://", "").rstrip("/"))
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -56,20 +52,23 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": (
-        dj_database_url.config(
-            default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
             conn_max_age=600,
-            ssl_require=not DEBUG,
+            ssl_require=True,
         )
-        if dj_database_url
-        else {
+    }
+else:
+    DATABASES = {
+        "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
-    )
-}
+    }
 
 TEMPLATES = [
     {
