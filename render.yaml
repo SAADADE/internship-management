@@ -1,0 +1,36 @@
+version: "1"
+
+projects:
+  - name: My project
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: InternDo
+            runtime: python
+            repo: https://github.com/SAADADE/internship-management
+            plan: free
+            region: virginia
+            rootDir: Backend
+
+            buildCommand: pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --noinput
+
+            startCommand: gunicorn config.wsgi:application
+
+            autoDeployTrigger: commit
+
+            envVars:
+              - key: GROQ_MODEL
+                sync: false
+              - key: GROQ_API_KEY
+                sync: false
+              - key: DATABASE_URL
+                sync: false
+              - key: FRONTEND_URL
+                sync: false
+              - key: ALLOWED_HOSTS
+                sync: false
+              - key: DEBUG
+                sync: false
+              - key: DJANGO_SECRET_KEY
+                sync: false
