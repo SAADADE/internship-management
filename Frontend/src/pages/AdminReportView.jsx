@@ -4,7 +4,7 @@ import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
   MessageSquare, Download
 } from 'lucide-react'
-import { getAdminReportDetail, updateAdminReportDetail } from '../api'
+import { getAdminReportDetail, resolveApiUrl, updateAdminReportDetail } from '../api'
 
 export default function AdminReportView() {
   const navigate = useNavigate()
@@ -151,7 +151,7 @@ export default function AdminReportView() {
             </div>
             {hasReportFile ? (
               <a
-                href={report.reportDownloadUrl}
+                href={resolveApiUrl(report.reportDownloadUrl)}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-800"
               >
                 <Download size={15} /> Download
@@ -163,7 +163,7 @@ export default function AdminReportView() {
             {hasReportFile && canPreviewPdf ? (
               <iframe
                 title="Submitted report preview"
-                src={`${report.reportPreviewUrl}#view=FitH`}
+                src={`${resolveApiUrl(report.reportPreviewUrl)}#view=FitH`}
                 className="h-full w-full"
               />
             ) : hasReportFile ? (

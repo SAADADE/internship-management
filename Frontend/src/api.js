@@ -1,4 +1,39 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '')
+
+function isAbsoluteUrl(value) {
+  return /^https?:\/\//i.test(value)
+}
+
+function getApiOrigin() {
+  try {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    return new URL(API_BASE, fallbackOrigin).origin
+  } catch {
+    return ''
+  }
+}
+
+const API_ORIGIN = getApiOrigin()
+
+if (import.meta.env.DEV) {
+  // Helps verify which backend origin the frontend is targeting during local development.
+  console.info('[api] base:', API_BASE, 'origin:', API_ORIGIN || '(unavailable)')
+}
+
+export function resolveApiUrl(pathOrUrl) {
+  if (!pathOrUrl) return ''
+  if (isAbsoluteUrl(pathOrUrl)) return pathOrUrl
+
+  const normalizedPath = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`
+
+  // Backend payloads can include /api/... links; attach only the origin to avoid /api/api duplication.
+  if (normalizedPath.startsWith('/api/') && API_ORIGIN) {
+    return `${API_ORIGIN}${normalizedPath}`
+  }
+
+  return `${API_BASE}${normalizedPath}`
+}
 
 function buildBasicAuthHeader(username, password) {
   if (!username || !password) return {}
@@ -23,7 +58,7 @@ export async function apiRequest(path, { method = 'GET', body, auth, headers = {
 
   let response
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       method,
       headers: requestHeaders,
       body: payload,
@@ -268,5 +303,5 @@ export function getAdminAppraisalDetail(appraisalId) {
 }
 
 export function getAdminReportDownloadUrl(reportId) {
-  return `${API_BASE}/admin/reports/${reportId}/download/`
+  return resolveApiUrl(`/admin/reports/${reportId}/download/`)
 }

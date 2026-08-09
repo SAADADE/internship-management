@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, GraduationCap, Mail, Briefcase, Calendar, MapPin, CheckCircle, Download, FileText } from 'lucide-react'
-import { getAdminStudentDetail } from '../api'
+import { getAdminStudentDetail, resolveApiUrl } from '../api'
 
 export default function AdminStudentView() {
   const navigate = useNavigate()
@@ -144,7 +144,7 @@ export default function AdminStudentView() {
                         <FileText size={14} /> File submitted: {student.reportFileName}
                       </p>
                       <a
-                        href={student.reportDownloadUrl}
+                        href={resolveApiUrl(student.reportDownloadUrl)}
                         className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
                       >
                         <Download size={14} /> Download report file
