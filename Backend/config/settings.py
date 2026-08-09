@@ -42,17 +42,22 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 frontend_url = os.getenv("FRONTEND_URL", "")
-if frontend_url:
-    CSRF_TRUSTED_ORIGINS.append(frontend_url.rstrip("/"))
-
 backend_url = os.getenv("BACKEND_URL", "")
-if backend_url:
-    CSRF_TRUSTED_ORIGINS.append(backend_url.rstrip("/"))
 
 if render_hostname:
     render_origin = f"https://{render_hostname}"
     if render_origin not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(render_origin)
+
+if frontend_url:
+    normalized_frontend = frontend_url.rstrip("/")
+    if normalized_frontend not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(normalized_frontend)
+
+if backend_url:
+    normalized_backend = backend_url.rstrip("/")
+    if normalized_backend not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(normalized_backend)
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -138,15 +143,33 @@ MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
 if frontend_url:
-    CORS_ALLOWED_ORIGINS = [frontend_url.rstrip("/")]
-else:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
+    normalized_frontend = frontend_url.rstrip("/")
+    if normalized_frontend not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(normalized_frontend)
+
+if backend_url:
+    normalized_backend = backend_url.rstrip("/")
+    if normalized_backend not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(normalized_backend)
 
 CORS_ALLOW_CREDENTIALS = True
+
+is_cross_site_frontend = bool(frontend_url) and "localhost" not in frontend_url and "127.0.0.1" not in frontend_url
+if is_cross_site_frontend:
+    # Required for browser to include session cookies on cross-site XHR/fetch.
+    SESSION_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+elif not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024

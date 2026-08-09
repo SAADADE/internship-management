@@ -41,9 +41,20 @@ export async function apiRequest(path, { method = 'GET', body, auth, headers = {
       errorData = null
     }
 
-    const message = errorData && typeof errorData === 'object'
-      ? JSON.stringify(errorData)
-      : errorData?.detail || errorData?.error || `Request failed with status ${response.status}`
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Your session is not active. Please log out and sign in again.')
+    }
+
+    const message = (() => {
+      if (!errorData) return `Request failed with status ${response.status}`
+      if (typeof errorData === 'string') return errorData
+      if (errorData.detail) return errorData.detail
+      if (errorData.error) return errorData.error
+      if (Array.isArray(errorData.non_field_errors) && errorData.non_field_errors.length) {
+        return errorData.non_field_errors[0]
+      }
+      return JSON.stringify(errorData)
+    })()
 
     throw new Error(message)
   }
