@@ -160,7 +160,17 @@ if backend_url:
 
 CORS_ALLOW_CREDENTIALS = True
 
-is_cross_site_frontend = bool(frontend_url) and "localhost" not in frontend_url and "127.0.0.1" not in frontend_url
+force_cross_site_cookies = os.getenv("FORCE_CROSS_SITE_COOKIES", "False") == "True"
+frontend_is_local = "localhost" in frontend_url or "127.0.0.1" in frontend_url
+backend_is_https = backend_url.startswith("https://")
+
+# In production we often serve frontend and backend on different origins.
+# If FRONTEND_URL is missing, fall back to BACKEND_URL + non-debug mode.
+is_cross_site_frontend = force_cross_site_cookies or (
+    (bool(frontend_url) and not frontend_is_local)
+    or (not DEBUG and backend_is_https)
+)
+
 if is_cross_site_frontend:
     # Required for browser to include session cookies on cross-site XHR/fetch.
     SESSION_COOKIE_SAMESITE = "None"
