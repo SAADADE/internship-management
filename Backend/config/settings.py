@@ -13,7 +13,16 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
-ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
+
+
+def _split_csv_env(name, default=""):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _split_csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
+render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_hostname and render_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_hostname)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -36,6 +45,15 @@ frontend_url = os.getenv("FRONTEND_URL", "")
 if frontend_url:
     CSRF_TRUSTED_ORIGINS.append(frontend_url.rstrip("/"))
 
+backend_url = os.getenv("BACKEND_URL", "")
+if backend_url:
+    CSRF_TRUSTED_ORIGINS.append(backend_url.rstrip("/"))
+
+if render_hostname:
+    render_origin = f"https://{render_hostname}"
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -47,6 +65,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# Render terminates TLS at the proxy; this keeps CSRF/session logic aware of HTTPS.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 
 ROOT_URLCONF = "config.urls"

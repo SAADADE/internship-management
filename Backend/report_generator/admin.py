@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Company, Internship, InternshipReportDraft, Log, Report, Review, Student, Supervisor
+from .models import ActivityLog, Appraisal, Company, CompanyRequest, Internship, InternshipReportDraft, Log, Report, Review, Student, Supervisor
 
 
 @admin.register(Company)
@@ -8,6 +8,13 @@ class CompanyAdmin(admin.ModelAdmin):
     list_display = ("name", "location", "created_by", "created_at")
     list_filter = ("location", "created_at")
     search_fields = ("name", "created_by__username", "created_by__email")
+
+
+@admin.register(CompanyRequest)
+class CompanyRequestAdmin(admin.ModelAdmin):
+    list_display = ("name", "location", "status", "requested_by", "reviewed_by", "created_at")
+    list_filter = ("status", "created_at")
+    search_fields = ("name", "requested_by__sch_email", "reviewed_by__username")
 
 
 @admin.register(Student)
@@ -59,3 +66,17 @@ class ReportAdmin(admin.ModelAdmin):
 class InternshipReportDraftAdmin(admin.ModelAdmin):
     list_display = ("student", "created_at")
     search_fields = ("student__sch_email", "introduction", "abstract", "conclusion")
+
+
+@admin.register(Appraisal)
+class AppraisalAdmin(admin.ModelAdmin):
+    list_display = ("student", "supervisor", "appraisal_date", "submitted_at")
+    list_filter = ("appraisal_date", "submitted_at")
+    search_fields = ("student__sch_email", "supervisor__fullname", "supervisor_name")
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ("recipient", "actor", "activity_type", "is_read", "created_at")
+    list_filter = ("activity_type", "is_read", "created_at")
+    search_fields = ("recipient__username", "actor__username", "title", "message")
