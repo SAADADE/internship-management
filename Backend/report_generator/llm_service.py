@@ -78,12 +78,75 @@ Supervisor           : {supervisor_name}
 Internship duration  : {internship_duration}
 Additional instructions: {additional_instructions}
 
+--- DRAFT SECTIONS FROM THE REPORT FORM ---
+{draft_sections}
+
+--- STUDENT LOGS TO USE AS SOURCE MATERIAL ---
+{student_logs}
+
 --- INTERN'S RAW NOTES / DRAFT ---
 {document_text}
 --- END OF RAW NOTES ---
 
 Return ONLY the JSON object. Do not wrap it in markdown code fences.
 """
+
+
+def _format_draft_sections(draft_sections: dict | None) -> str:
+  if not draft_sections:
+    return "No draft sections provided."
+
+  ordered_sections = [
+    ("Abstract", draft_sections.get("abstract", "")),
+    ("Introduction", draft_sections.get("introduction", "")),
+    ("Conclusion", draft_sections.get("conclusion", "")),
+  ]
+
+  blocks = []
+  for label, content in ordered_sections:
+    normalized = (content or "").strip()
+    blocks.append(f"{label}:\n{normalized or '[Not provided]'}")
+  return "\n\n".join(blocks)
+
+
+def _format_student_logs(student_logs: list[dict] | None) -> str:
+  if not student_logs:
+    return "No student logs provided."
+
+  entries = []
+  for index, log in enumerate(student_logs, start=1):
+    daily_entries = log.get("daily_entries") or []
+    daily_blocks = []
+    for item in daily_entries:
+      if not isinstance(item, dict):
+        continue
+      parts = [
+        f"Day: {item.get('day') or 'Not specified'}",
+        f"Tasks: {item.get('tasks') or 'None'}",
+        f"Skills: {item.get('skills') or 'None'}",
+      ]
+      if item.get("challenges"):
+        parts.append(f"Challenges: {item['challenges']}")
+      if item.get("solutions"):
+        parts.append(f"Solutions: {item['solutions']}")
+      daily_blocks.append(" | ".join(parts))
+
+    log_lines = [
+      f"Log {index}",
+      f"Week: {log.get('week_number') or 'Not specified'}",
+      f"Date: {log.get('log_date') or 'Not specified'}",
+      f"Company: {log.get('company_name') or 'Not specified'}",
+      f"Department / Unit: {log.get('department_unit') or 'Not specified'}",
+      f"Supervisor: {log.get('supervisor_name') or 'Not specified'}",
+      f"Achievements: {log.get('achievements') or 'None'}",
+      f"Summary: {log.get('log_text') or 'None'}",
+    ]
+    if daily_blocks:
+      log_lines.append("Daily entries:")
+      log_lines.extend(daily_blocks)
+    entries.append("\n".join(log_lines))
+
+  return "\n\n".join(entries)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -98,6 +161,8 @@ def generate_report_structure(
     institution_name: str = "",
     programme: str = "",
     additional_instructions: str = "",
+    draft_sections: dict | None = None,
+    student_logs: list[dict] | None = None,
 ) -> dict:
     """
     Send the document text to Groq and return a parsed dict matching the
@@ -123,6 +188,8 @@ def generate_report_structure(
         supervisor_name=supervisor_name or "Not specified",
         internship_duration=internship_duration or "Not specified",
         additional_instructions=additional_instructions or "None",
+        draft_sections=_format_draft_sections(draft_sections),
+        student_logs=_format_student_logs(student_logs),
         document_text=document_text.strip(),
     )
 

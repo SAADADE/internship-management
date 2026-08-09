@@ -4,12 +4,14 @@ import os
 import uuid
 from collections import defaultdict
 from datetime import timedelta
+from html import unescape
 
 from django.contrib.auth import authenticate, get_user_model, login
 from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Q
 from django.http import FileResponse, HttpResponse
+from django.utils.html import strip_tags
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 from rest_framework import status
@@ -84,6 +86,12 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_rich_text(value):
+    normalized = unescape(strip_tags(value or ""))
+    lines = [line.strip() for line in normalized.splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def _get_admin_users():
@@ -745,15 +753,63 @@ class StudentGenerateReportView(APIView):
         if not approved_logs.exists():
             return Response({"detail": "At least one reviewed log is required before generating a report."}, status=status.HTTP_400_BAD_REQUEST)
 
+        draft_sections = {
+            "introduction": _clean_rich_text(draft.introduction),
+            "abstract": _clean_rich_text(draft.abstract),
+            "conclusion": _clean_rich_text(draft.conclusion),
+        }
+
         log_sections = []
+        student_logs = []
         for log in approved_logs:
-            log_sections.append(f"Date: {log.log_date}\n{log.log_text}")
+            daily_entries = []
+            for index, entry in enumerate(log.daily_entries or []):
+                if not isinstance(entry, dict):
+                    continue
+                day = entry.get("day") or f"Day {index + 1}"
+                daily_entries.append(
+                    {
+                        "day": day,
+                        "tasks": entry.get("tasks", ""),
+                        "skills": entry.get("skills", ""),
+                        "challenges": entry.get("challenges", ""),
+                        "solutions": entry.get("solutions", ""),
+                    }
+                )
+
+            student_logs.append(
+                {
+                    "week_number": log.week_number,
+                    "log_date": log.log_date.isoformat() if log.log_date else "",
+                    "company_name": log.company_name or profile.company,
+                    "department_unit": log.department_unit,
+                    "supervisor_name": log.supervisor_name,
+                    "achievements": log.achievements,
+                    "log_text": log.log_text,
+                    "daily_entries": daily_entries,
+                }
+            )
+
+            log_sections.append(
+                "\n".join(
+                    filter(
+                        None,
+                        [
+                            f"Week: {log.week_number}" if log.week_number else "",
+                            f"Date: {log.log_date}" if log.log_date else "",
+                            f"Department / Unit: {log.department_unit}" if log.department_unit else "",
+                            f"Achievements: {log.achievements}" if log.achievements else "",
+                            log.log_text,
+                        ],
+                    )
+                )
+            )
 
         document_text = "\n\n".join(
             [
-                f"Introduction:\n{draft.introduction}",
-                f"Abstract:\n{draft.abstract}",
-                f"Conclusion:\n{draft.conclusion}",
+                f"Introduction:\n{draft_sections['introduction']}",
+                f"Abstract:\n{draft_sections['abstract']}",
+                f"Conclusion:\n{draft_sections['conclusion']}",
                 "Reviewed logs:",
                 *log_sections,
             ]
@@ -771,7 +827,12 @@ class StudentGenerateReportView(APIView):
         }
 
         try:
-            report_data = generate_report_structure(document_text=document_text, **metadata)
+            report_data = generate_report_structure(
+                document_text=document_text,
+                draft_sections=draft_sections,
+                student_logs=student_logs,
+                **metadata,
+            )
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except RuntimeError as exc:

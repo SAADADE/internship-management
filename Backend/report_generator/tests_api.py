@@ -419,7 +419,20 @@ class BackendApiTests(TestCase):
     def test_report_draft_and_generate_report_work(self):
         user, student = self.create_student_user()
         self.client.force_authenticate(user)
-        Log.objects.create(student=student, log_text="Approved work", status="reviewed", log_date="2026-07-30")
+        Log.objects.create(
+            student=student,
+            log_text="Approved work",
+            status="reviewed",
+            log_date="2026-07-30",
+            week_number=2,
+            company_name="ACME Corp",
+            department_unit="Engineering",
+            supervisor_name="Mr. Mensah",
+            achievements="Completed assigned tasks",
+            daily_entries=[
+                {"day": "Monday", "tasks": "Configured systems", "skills": "System setup", "challenges": "None", "solutions": "N/A"}
+            ],
+        )
 
         draft_response = self.client.post(
             "/api/student/report-draft/",
@@ -445,6 +458,13 @@ class BackendApiTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         mock_generate.assert_called_once()
         mock_build.assert_called_once()
+        generate_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(generate_kwargs["draft_sections"]["introduction"], "Introduction text")
+        self.assertEqual(generate_kwargs["draft_sections"]["abstract"], "Abstract text")
+        self.assertEqual(generate_kwargs["draft_sections"]["conclusion"], "Conclusion text")
+        self.assertEqual(len(generate_kwargs["student_logs"]), 1)
+        self.assertEqual(generate_kwargs["student_logs"][0]["company_name"], "ACME Corp")
+        self.assertEqual(generate_kwargs["student_logs"][0]["daily_entries"][0]["day"], "Monday")
 
     def test_student_companies_endpoint_returns_companies(self):
         user, _ = self.create_student_user()

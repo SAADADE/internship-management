@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered, UploadCloud } from 'lucide-react'
+import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered, UploadCloud, CheckCircle, Download } from 'lucide-react'
 import { generateStudentReport, saveReportDraft, uploadStudentReportFile } from '../api'
 
 const sectionConfig = [
@@ -74,9 +74,38 @@ export default function GenerateReport() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('generate')
   const [selectedFile, setSelectedFile] = useState(null)
+  const [generatedReport, setGeneratedReport] = useState(null)
+
+  useEffect(() => {
+    return () => {
+      if (generatedReport?.url) {
+        window.URL.revokeObjectURL(generatedReport.url)
+      }
+    }
+  }, [generatedReport])
 
   const handleChange = (key, value) => {
     setContent((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleDownloadGeneratedReport = () => {
+    if (!generatedReport?.url) return
+
+    const link = document.createElement('a')
+    link.href = generatedReport.url
+    link.download = generatedReport.filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleCloseGeneratedReport = () => {
+    setGeneratedReport((current) => {
+      if (current?.url) {
+        window.URL.revokeObjectURL(current.url)
+      }
+      return null
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -122,18 +151,18 @@ export default function GenerateReport() {
       })
 
       const blob = await generateStudentReport()
+      const nextUrl = window.URL.createObjectURL(blob)
+      const nextFilename = `internship_report_${(user?.name || user?.username || 'student').replace(/\s+/g, '_').toLowerCase()}.docx`
 
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'internship_report.docx'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      setGeneratedReport((current) => {
+        if (current?.url) {
+          window.URL.revokeObjectURL(current.url)
+        }
+        return { url: nextUrl, filename: nextFilename }
+      })
 
       setSubmitted(true)
-      setMessage(`Your report draft for ${user?.name || 'the student'} is ready for review.`)
+      setMessage(`Your report draft for ${user?.name || 'the student'} is ready to download.`)
     } catch (err) {
       setSubmitted(false)
       setMessage(err.message || 'Unable to generate the report right now.')
@@ -144,6 +173,30 @@ export default function GenerateReport() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 animate-fade-in">
+      {generatedReport && mode === 'generate' ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle size={28} />
+            </div>
+            <div className="mt-4 text-center">
+              <h2 className="font-heading text-xl font-bold text-gray-900">Report generated successfully</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Your internship report is ready. Download the document below.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col gap-3">
+              <button type="button" onClick={handleDownloadGeneratedReport} className="btn-primary inline-flex items-center justify-center gap-2">
+                <Download size={16} /> Download Report
+              </button>
+              <button type="button" onClick={handleCloseGeneratedReport} className="btn-secondary">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="card p-8 space-y-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
