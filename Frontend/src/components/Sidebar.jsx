@@ -18,6 +18,7 @@ const studentNav = [
 
 const supervisorNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/supervisor' },
+  { label: 'Students', icon: GraduationCap, to: '/supervisor/students' },
   { label: 'Reports', icon: FileText, to: '/supervisor/reports' },
   { label: 'Appraisal', icon: FileText, to: '/supervisor/appraisal' },
 ]

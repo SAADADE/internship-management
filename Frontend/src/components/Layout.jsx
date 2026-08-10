@@ -11,6 +11,7 @@ const PAGE_META = {
   '/reports/logs/:id':     { title: 'Weekly Log Details' },
   '/reports/upload':       { title: 'Upload Report' },
   '/supervisor':           { title: 'Supervisor Dashboard' },
+  '/supervisor/students':  { title: 'Assigned Students' },
   '/admin':                { title: 'Admin Dashboard' },
   '/admin/companies':      { title: 'Manage Companies' },
   '/profile':              { title: 'My Profile' },

@@ -12,6 +12,7 @@ import ViewReports from './pages/ViewReports'
 import SupervisorDashboard from './pages/SupervisorDashboard'
 import ReportReview from './pages/ReportReview'
 import SupervisorReports from './pages/SupervisorReports'
+import SupervisorStudents from './pages/SupervisorStudents'
 import InternAppraisal from './pages/InternAppraisal'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminCompanies from './pages/AdminCompanies'
@@ -122,6 +123,11 @@ export default function App() {
           <Route path="/supervisor/reports" element={
             <ProtectedRoute roles={['supervisor']}>
               <Layout><SupervisorReports /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/supervisor/students" element={
+            <ProtectedRoute roles={['supervisor']}>
+              <Layout><SupervisorStudents /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/supervisor/review/:id" element={
