@@ -273,16 +273,7 @@ export default function GenerateReport() {
                   </option>
                 ))}
               </select>
-              <div className="text-sm text-gray-500 md:text-right">
-                {selectedInternship ? (
-                  <>
-                    <p className="font-medium text-gray-700">{selectedInternship.company_name}</p>
-                  </>
-                ) : (
-                  <p>No internship selected.</p>
-                )}
               </div>
-            </div>
           ) : (
             <p className="text-sm text-amber-700">Register an internship first before generating a report.</p>
           )}
