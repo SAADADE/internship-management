@@ -426,24 +426,58 @@ class BackendApiTests(TestCase):
         self.client.force_authenticate(user)
         supervisor = Supervisor.objects.create(fullname="Mr. Mensah", email="mensah@example.com")
 
+        with patch("report_generator.views.send_mail") as mock_send_mail:
+            response = self.client.post(
+                "/api/student/internships/",
+                {
+                    "company_name": "ACME Corp",
+                    "company_address": "Accra",
+                    "internship_position": "Software Engineering",
+                    "internship_supervisor": "Mr. Mensah",
+                    "internship_supervisor_email": "mensah@example.com",
+                    "internship_duration": "2026-07-01 to 2026-09-30",
+                    "department": "IT Department",
+                    "description": "Summer placement",
+                    "start_date": "2026-07-01",
+                    "end_date": "2026-09-30",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(student.supervisors.filter(pk=supervisor.pk).exists())
+        mock_send_mail.assert_called_once()
+        self.assertIn("mensah@example.com", mock_send_mail.call_args.args[3])
+
+    def test_supervisor_login_links_students_using_matching_internship_supervisor_email(self):
+        supervisor_user, supervisor = self.create_supervisor_user(username="supervisor-link", email="link@example.com")
+        student_user = self.user_model.objects.create_user(username="student-link-login", password="StrongPass123!")
+        student = Student.objects.create(
+            user=student_user,
+            sch_email="student-link-login@example.com",
+            index_number="20240004",
+            first_name="Ama",
+            last_name="Boateng",
+        )
+        Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+            internship_supervisor="Dr. Link",
+            internship_supervisor_email="link@example.com",
+        )
+
+        self.assertFalse(student.supervisors.filter(pk=supervisor.pk).exists())
+
         response = self.client.post(
-            "/api/student/internships/",
-            {
-                "company_name": "ACME Corp",
-                "company_address": "Accra",
-                "internship_position": "Software Engineering",
-                "internship_supervisor": "Mr. Mensah",
-                "internship_supervisor_email": "mensah@example.com",
-                "internship_duration": "2026-07-01 to 2026-09-30",
-                "department": "IT Department",
-                "description": "Summer placement",
-                "start_date": "2026-07-01",
-                "end_date": "2026-09-30",
-            },
+            "/api/auth/login/",
+            {"username": "supervisor-link", "password": "StrongPass123!"},
             format="json",
         )
 
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["role"], "supervisor")
+        student.refresh_from_db()
         self.assertTrue(student.supervisors.filter(pk=supervisor.pk).exists())
 
     def test_supervisor_registration_links_matching_students_from_existing_internships(self):

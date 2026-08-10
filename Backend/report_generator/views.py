@@ -6,7 +6,9 @@ from collections import defaultdict
 from datetime import timedelta
 from html import unescape
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login
+from django.core.mail import send_mail
 from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Q
@@ -122,6 +124,42 @@ def _notify_users(*, recipients, activity_type, title, message, actor=None, meta
 
     ActivityLog.objects.bulk_create(payload)
     return len(payload)
+
+
+def _send_internship_registration_email(*, supervisor_email, supervisor_name, student_name, internship):
+    normalized_email = (supervisor_email or "").strip()
+    if not normalized_email:
+        return
+
+    subject = f"New Internship Assignment: {student_name}"
+    body = "\n".join(
+        [
+            f"Hello {supervisor_name or 'Supervisor'},",
+            "",
+            f"A student has registered you as internship supervisor.",
+            f"Student: {student_name}",
+            f"Company: {internship.company_name}",
+            f"Position: {internship.internship_position or 'Internship'}",
+            f"Duration: {internship.internship_duration or 'Not provided'}",
+            "",
+            "Please sign in with this email to review assigned student logs and reports.",
+            "Sign-in link: https://interndo.vercel.app/signup",
+            "",
+            "Regards,",
+            "InternDO",
+        ]
+    )
+
+    try:
+        send_mail(
+            subject,
+            body,
+            getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@interndo.local"),
+            [normalized_email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Unable to send internship registration email to supervisor")
 
 
 class HealthCheckView(APIView):
@@ -273,6 +311,8 @@ class AuthLoginView(APIView):
             profile = StudentProfile.objects.filter(user=user).first()
         elif role == "supervisor":
             profile = SupervisorProfile.objects.filter(user=user).first()
+            if profile:
+                profile.link_students_by_email()
 
         return Response(
             {
@@ -340,6 +380,8 @@ class CurrentUserProfileView(APIView):
             if profile:
                 profile_payload.update(
                     {
+                        "name": profile.fullname or profile_payload.get("name", ""),
+                        "email": profile.email or profile_payload.get("email", ""),
                         "fullname": profile.fullname,
                         "supervisor_email": profile.email,
                     }
@@ -613,11 +655,18 @@ class StudentInternshipView(APIView):
         supervisor = profile.link_supervisor_by_email(payload.get("internship_supervisor_email") or "")
         internship = serializer.save(student=profile, supervisor=supervisor, status="active")
 
+        student_name = f"{profile.first_name} {profile.last_name}".strip() or profile.sch_email
+        _send_internship_registration_email(
+            supervisor_email=internship.internship_supervisor_email,
+            supervisor_name=internship.internship_supervisor,
+            student_name=student_name,
+            internship=internship,
+        )
+
         recipients = list(_get_admin_users())
         if supervisor and supervisor.user:
             recipients.append(supervisor.user)
 
-        student_name = f"{profile.first_name} {profile.last_name}".strip() or profile.sch_email
         _notify_users(
             recipients=recipients,
             activity_type="internship_registered",

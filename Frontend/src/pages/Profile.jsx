@@ -13,7 +13,6 @@ export default function Profile() {
     name: user?.name || '',
     email: user?.email || '',
     role: user?.role || '',
-    faculty: user?.profile?.faculty || '',
     department: user?.profile?.department || '',
     programme: user?.profile?.programme || '',
     level: user?.profile?.level || '',
@@ -31,11 +30,12 @@ export default function Profile() {
   const canEditProfile = (profileData?.role || user?.role) === 'student'
 
   const populateForm = (profile) => {
+    const role = profile?.role || ''
+    const isSupervisor = role === 'supervisor'
     setFormData({
-      name: profile?.name || '',
-      email: profile?.email || '',
+      name: isSupervisor ? (profile?.fullname || profile?.name || '') : (profile?.name || ''),
+      email: isSupervisor ? (profile?.supervisor_email || profile?.email || '') : (profile?.email || ''),
       role: profile?.role || '',
-      faculty: profile?.faculty || '',
       department: profile?.department || '',
       programme: profile?.programme || '',
       level: profile?.level || '',
@@ -73,7 +73,6 @@ export default function Profile() {
         sch_email: formData.email,
         first_name: formData.name.split(' ')[0] || '',
         last_name: formData.name.split(' ').slice(1).join(' ') || '',
-        faculty: formData.faculty,
         department: formData.department,
         programme: formData.programme,
         level: formData.level,
@@ -227,10 +226,6 @@ export default function Profile() {
           {isEditing && canEditProfile ? (
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
-                <input value={formData.faculty} onChange={(e) => setFormData(prev => ({ ...prev, faculty: e.target.value }))} className="input-field" />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                 <input value={formData.department} onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))} className="input-field" />
               </div>
@@ -253,7 +248,6 @@ export default function Profile() {
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 text-sm text-gray-600">
-              <div><span className="font-semibold text-gray-700">Faculty:</span> {formData.faculty || '—'}</div>
               <div><span className="font-semibold text-gray-700">Department:</span> {formData.department || '—'}</div>
               <div><span className="font-semibold text-gray-700">Programme:</span> {formData.programme || '—'}</div>
               <div><span className="font-semibold text-gray-700">Level:</span> {formData.level || '—'}</div>
