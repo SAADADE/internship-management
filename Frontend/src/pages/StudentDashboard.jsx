@@ -58,7 +58,7 @@ export default function StudentDashboard() {
     {
       icon: Briefcase,
       label: 'Internship Status',
-      value: summary?.stats?.internship_status || 'Pending',
+      value: summary?.stats?.internship_status || 'Not Registered',
       color: 'green',
       trendLabel: summary?.student?.department ? `Registered — ${summary.student.department}` : 'Registered',
     },

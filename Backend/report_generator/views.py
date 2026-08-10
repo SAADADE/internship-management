@@ -524,7 +524,7 @@ class StudentDashboardView(APIView):
                 "badge": "badge-success",
             })
 
-        status_label = latest_internship.status.title() if latest_internship else "Pending"
+        status_label = "Active" if latest_internship else "Not Registered"
         stats = {
             "internship_status": status_label,
             "reports_submitted": reports.count(),
@@ -611,7 +611,7 @@ class StudentInternshipView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         supervisor = profile.link_supervisor_by_email(payload.get("internship_supervisor_email") or "")
-        internship = serializer.save(student=profile, supervisor=supervisor)
+        internship = serializer.save(student=profile, supervisor=supervisor, status="active")
 
         recipients = list(_get_admin_users())
         if supervisor and supervisor.user:

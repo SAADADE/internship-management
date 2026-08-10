@@ -115,7 +115,7 @@ export default function InternshipRegistration() {
         </div>
         <h2 className="font-heading text-2xl font-bold text-gray-900 mb-3">Registration Submitted!</h2>
         <p className="text-gray-500 font-body mb-6">
-          Your internship registration has been submitted successfully and is pending approval from your supervisor.
+          Your internship registration has been submitted successfully and is now available in your internship list.
         </p>
         <div className="card p-5 text-left space-y-2 mb-6">
           <p className="text-sm text-gray-500"><span className="font-semibold text-gray-700">Company:</span> {form.companyName}</p>

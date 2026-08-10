@@ -33,10 +33,17 @@ function formatDate(value) {
 
 function statusStyles(status) {
   const normalized = (status || '').toLowerCase()
-  if (normalized === 'active') return 'bg-emerald-100 text-emerald-700'
+  if (normalized === 'active' || normalized === 'pending') return 'bg-emerald-100 text-emerald-700'
   if (normalized === 'completed') return 'bg-sky-100 text-sky-700'
   if (normalized === 'rejected') return 'bg-rose-100 text-rose-700'
   return 'bg-amber-100 text-amber-700'
+}
+
+function statusLabel(status) {
+  const normalized = (status || '').toLowerCase()
+  if (normalized === 'completed') return 'Completed'
+  if (normalized === 'rejected') return 'Rejected'
+  return 'Active'
 }
 
 function validateForm(form) {
@@ -215,7 +222,7 @@ export default function StudentInternships() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles(internship.status)}`}>
-                          {(internship.status || 'pending').toUpperCase()}
+                          {statusLabel(internship.status)}
                         </span>
                         <button
                           type="button"
