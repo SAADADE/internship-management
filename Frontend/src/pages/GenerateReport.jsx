@@ -277,7 +277,6 @@ export default function GenerateReport() {
                 {selectedInternship ? (
                   <>
                     <p className="font-medium text-gray-700">{selectedInternship.company_name}</p>
-                    <p>{selectedInternship.internship_position || 'Internship'}</p>
                   </>
                 ) : (
                   <p>No internship selected.</p>
