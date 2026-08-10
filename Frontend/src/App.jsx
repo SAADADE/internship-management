@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import StudentDashboard from './pages/StudentDashboard'
 import InternshipRegistration from './pages/InternshipRegistration'
+import StudentInternships from './pages/StudentInternships'
 import CompanyRequest from './pages/CompanyRequest'
 import LogsUpload from './pages/LogsUpload'
 import ViewReports from './pages/ViewReports'
@@ -18,6 +19,7 @@ import Profile from './pages/Profile'
 import Feedback from './pages/Feedback'
 import GenerateReport from './pages/GenerateReport'
 import ViewFeedbackDetails from './pages/LogSheetView'
+import StudentLogDetail from './pages/StudentLogDetail'
 import AdminStudents from './pages/AdminStudents'
 import AdminStudentView from './pages/AdminStudentView'
 import AdminReports from './pages/AdminReports'
@@ -65,6 +67,11 @@ export default function App() {
               <Layout><InternshipRegistration /></Layout>
             </ProtectedRoute>
           } />
+          <Route path="/internship/my-registrations" element={
+            <ProtectedRoute roles={['student']}>
+              <Layout><StudentInternships /></Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/internship/company-request" element={
             <ProtectedRoute roles={['student']}>
               <Layout><CompanyRequest /></Layout>
@@ -83,6 +90,11 @@ export default function App() {
           <Route path="/reports" element={
             <ProtectedRoute roles={['student']}>
               <Layout><ViewReports /></Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/reports/logs/:id" element={
+            <ProtectedRoute roles={['student']}>
+              <Layout><StudentLogDetail /></Layout>
             </ProtectedRoute>
           } />
           <Route path="/reports/generate" element={

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Eye, Download, Search, FileText } from 'lucide-react'
 import { getStudentReports, generateStudentReport } from '../api'
 
@@ -39,6 +40,7 @@ const formatDate = value => {
 }
 
 export default function ViewReports() {
+  const navigate = useNavigate()
   const [reports, setReports] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -213,7 +215,14 @@ export default function ViewReports() {
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={e => { e.stopPropagation(); setSelected(r) }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (r.source === 'log') {
+                              navigate(`/reports/logs/${r.id}`)
+                              return
+                            }
+                            setSelected(r)
+                          }}
                           className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800
                                      font-medium transition-colors px-2.5 py-1.5 rounded-lg hover:bg-primary-50"
                         >

@@ -8,6 +8,7 @@ import {
 const studentNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { label: 'Internship', icon: Briefcase, to: '/internship/register' },
+  { label: 'My Internships', icon: Briefcase, to: '/internship/my-registrations' },
   { label: 'Request Company', icon: Briefcase, to: '/internship/company-request' },
   { label: 'Weekly Logs', icon: FileText, to: '/reports' },
   { label: 'Upload Logs', icon: FileText, to: '/reports/upload' },

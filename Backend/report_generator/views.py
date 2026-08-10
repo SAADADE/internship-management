@@ -630,6 +630,48 @@ class StudentInternshipView(APIView):
         return Response(InternshipSerializer(internship).data, status=status.HTTP_201_CREATED)
 
 
+class StudentInternshipDetailView(APIView):
+    permission_classes = [IsStudentUser]
+
+    def _get_internship(self, request, internship_id):
+        profile = StudentProfile.objects.get(user=request.user)
+        return Internship.objects.filter(student=profile, internship_id=internship_id).first()
+
+    def patch(self, request, internship_id):
+        internship = self._get_internship(request, internship_id)
+        if not internship:
+            return Response({"detail": "Internship not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = request.data.copy()
+
+        if payload.get("start_date") and not payload.get("internship_duration"):
+            payload["internship_duration"] = payload["start_date"]
+
+        if payload.get("end_date") and payload.get("internship_duration") and " to " not in payload["internship_duration"]:
+            payload["internship_duration"] = f"{payload['internship_duration']} to {payload['end_date']}"
+
+        serializer = InternshipSerializer(internship, data=payload, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_internship = serializer.save()
+
+        if "internship_supervisor_email" in payload:
+            supervisor = internship.student.link_supervisor_by_email(payload.get("internship_supervisor_email") or "")
+            updated_internship.supervisor = supervisor
+            updated_internship.save(update_fields=["supervisor", "updated_at"])
+
+        return Response(InternshipSerializer(updated_internship).data)
+
+    def delete(self, request, internship_id):
+        internship = self._get_internship(request, internship_id)
+        if not internship:
+            return Response({"detail": "Internship not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        internship.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class StudentLogView(APIView):
     permission_classes = [IsStudentUser]
 
@@ -711,9 +753,18 @@ class StudentFeedbackView(APIView):
 class StudentLogDetailView(APIView):
     permission_classes = [IsStudentUser]
 
-    def patch(self, request, log_id):
+    def _get_log(self, request, log_id):
         profile = StudentProfile.objects.get(user=request.user)
-        log = DailyLog.objects.filter(student=profile, log_id=log_id).first()
+        return DailyLog.objects.filter(student=profile, log_id=log_id).first()
+
+    def get(self, request, log_id):
+        log = self._get_log(request, log_id)
+        if not log:
+            return Response({"detail": "Log not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DailyLogSerializer(log).data)
+
+    def patch(self, request, log_id):
+        log = self._get_log(request, log_id)
         if not log:
             return Response({"detail": "Log not found."}, status=status.HTTP_404_NOT_FOUND)
         if log.status == "reviewed":
@@ -723,6 +774,15 @@ class StudentLogDetailView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
         return Response(serializer.data)
+
+    def delete(self, request, log_id):
+        log = self._get_log(request, log_id)
+        if not log:
+            return Response({"detail": "Log not found."}, status=status.HTTP_404_NOT_FOUND)
+        if log.status == "reviewed":
+            return Response({"detail": "Reviewed logs cannot be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+        log.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class StudentReportDraftView(APIView):
@@ -749,9 +809,22 @@ class StudentGenerateReportView(APIView):
         if not draft.introduction.strip() or not draft.abstract.strip() or not draft.conclusion.strip():
             return Response({"detail": "Introduction, abstract, and conclusion are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        approved_logs = DailyLog.objects.filter(student=profile, status="reviewed").order_by("log_date", "created_at")
+        internships = Internship.objects.filter(student=profile).order_by("-created_at")
+        internship_id = request.data.get("internship_id")
+        internship = None
+
+        if internship_id:
+            internship = internships.filter(internship_id=internship_id).first()
+            if not internship:
+                return Response({"detail": "Selected internship not found."}, status=status.HTTP_404_NOT_FOUND)
+        elif internships.exists():
+            internship = internships.first()
+        else:
+            return Response({"detail": "Please register an internship before generating a report."}, status=status.HTTP_400_BAD_REQUEST)
+
+        approved_logs = DailyLog.objects.filter(student=profile, internship=internship, status="reviewed").order_by("log_date", "created_at")
         if not approved_logs.exists():
-            return Response({"detail": "At least one reviewed log is required before generating a report."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "At least one reviewed log is required for the selected internship before generating a report."}, status=status.HTTP_400_BAD_REQUEST)
 
         draft_sections = {
             "introduction": _clean_rich_text(draft.introduction),
@@ -781,7 +854,7 @@ class StudentGenerateReportView(APIView):
                 {
                     "week_number": log.week_number,
                     "log_date": log.log_date.isoformat() if log.log_date else "",
-                    "company_name": log.company_name or profile.company,
+                    "company_name": log.company_name or internship.company_name,
                     "department_unit": log.department_unit,
                     "supervisor_name": log.supervisor_name,
                     "achievements": log.achievements,
@@ -817,10 +890,10 @@ class StudentGenerateReportView(APIView):
 
         metadata = {
             "intern_name": request.user.get_full_name() or request.user.username,
-            "company_name": profile.company,
-            "internship_duration": "",
-            "department": draft.department or profile.position,
-            "supervisor_name": draft.supervisor_name,
+            "company_name": internship.company_name,
+            "internship_duration": internship.internship_duration,
+            "department": draft.department or internship.department or internship.internship_position,
+            "supervisor_name": internship.internship_supervisor or draft.supervisor_name,
             "institution_name": profile.university,
             "programme": profile.programme,
             "additional_instructions": draft.additional_notes,

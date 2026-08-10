@@ -63,7 +63,6 @@ function validateField(name, value, compareValue = '') {
   switch (name) {
     case 'firstName':
     case 'lastName':
-    case 'faculty':
     case 'department':
     case 'program':
     case 'username':
@@ -187,9 +186,7 @@ export default function Signup() {
         institution: formData.institution,
         role: formData.role,
       })
-      setSuccess('Your account was created successfully. You can now sign in.')
-      setFormData(initialFormState)
-      setErrors(emptyErrors)
+      navigate('/login')
     } catch (err) {
       setSuccess('')
       setErrors((current) => ({ ...current, email: err.message }))
@@ -308,8 +305,9 @@ export default function Signup() {
                 </div>
               </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-1">
                 {!isSupervisor ? (
+                  <div>
                   <div>
                     <label htmlFor="studentId" className="form-label">Student ID</label>
                     <input
@@ -323,6 +321,23 @@ export default function Signup() {
                       placeholder="2024-12345"
                     />
                     {errors.studentId && <p className="mt-2 text-sm text-red-600">{errors.studentId}</p>}
+                  </div>
+
+                  <div className="mt-5">
+                    <label htmlFor="email" className="form-label">Email Address</label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleFieldChange}
+                      onBlur={(e) => setErrors((current) => ({ ...current, email: validateField('email', e.target.value) }))}
+                      className="form-input"
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                    />
+                    {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
+                  </div>
                   </div>
                 ) : (
                   <div>
@@ -342,24 +357,7 @@ export default function Signup() {
                   </div>
                 )}
               </div>
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="email" className="form-label">Email Address</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, email: validateField('email', e.target.value) }))}
-                    className="form-input"
-                    placeholder={isSupervisor ? 'you@company.com' : 'you@university.edu.gh'}
-                    autoComplete="email"
-                  />
-                  {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
-                </div>
-
+              <div className="grid gap-5 sm:grid-cols-1">
                 <div>
                   <label htmlFor="phone" className="form-label">Phone Number</label>
                   <input
@@ -370,7 +368,7 @@ export default function Signup() {
                     onChange={handleFieldChange}
                     onBlur={(e) => setErrors((current) => ({ ...current, phone: validateField('phone', e.target.value) }))}
                     className="form-input"
-                    placeholder="+233 24 123 4567"
+                    placeholder="+233241234567"
                     autoComplete="tel"
                   />
                   {errors.phone && <p className="mt-2 text-sm text-red-600">{errors.phone}</p>}
@@ -378,20 +376,6 @@ export default function Signup() {
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="institution" className="form-label">Institution</label>
-                  <input
-                    id="institution"
-                    name="institution"
-                    type="text"
-                    value={formData.institution}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, institution: validateField('institution', e.target.value) }))}
-                    className="form-input"
-                    placeholder="University of Ghana"
-                  />
-                  {errors.institution && <p className="mt-2 text-sm text-red-600">{errors.institution}</p>}
-                </div>
 
                 <div>
                   <label htmlFor="role" className="form-label">Role</label>
@@ -403,7 +387,6 @@ export default function Signup() {
                     onBlur={(e) => setErrors((current) => ({ ...current, role: validateField('role', e.target.value) }))}
                     className="form-input"
                   >
-                    <option value="">Select role</option>
                     <option value="student">Student</option>
                     <option value="supervisor">Supervisor</option>
                   </select>
@@ -411,21 +394,7 @@ export default function Signup() {
                 </div>
               </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="faculty" className="form-label">Faculty</label>
-                  <input
-                    id="faculty"
-                    name="faculty"
-                    type="text"
-                    value={formData.faculty}
-                    onChange={handleFieldChange}
-                    onBlur={(e) => setErrors((current) => ({ ...current, faculty: validateField('faculty', e.target.value) }))}
-                    className="form-input"
-                    placeholder="College of Engineering"
-                  />
-                  {errors.faculty && <p className="mt-2 text-sm text-red-600">{errors.faculty}</p>}
-                </div>
+              <div className="grid gap-5 sm:grid-cols-1">
 
                 <div>
                   <label htmlFor="department" className="form-label">Department</label>
@@ -460,6 +429,21 @@ export default function Signup() {
                     {errors.program && <p className="mt-2 text-sm text-red-600">{errors.program}</p>}
                   </div>
                 )}
+
+                <div>
+                  <label htmlFor="institution" className="form-label">Institution</label>
+                  <input
+                    id="institution"
+                    name="institution"
+                    type="text"
+                    value={formData.institution}
+                    onChange={handleFieldChange}
+                    onBlur={(e) => setErrors((current) => ({ ...current, institution: validateField('institution', e.target.value) }))}
+                    className="form-input"
+                    placeholder="University of Ghana"
+                  />
+                  {errors.institution && <p className="mt-2 text-sm text-red-600">{errors.institution}</p>}
+                </div>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -518,10 +502,10 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={() => setFormData((current) => ({ ...current, showPassword: !current.showPassword }))}
-                    className=" absolute right-3 top-1/2 h-10-translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                    className="absolute right-3 top-1/2 h-10 -translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
                     aria-label={formData.showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {formData.showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                    {formData.showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                   {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
                 </div>
@@ -544,10 +528,10 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={() => setFormData((current) => ({ ...current, showPassword: !current.showPassword }))}
-                    className="absolute right-3 top-1/2 h-10-translate-y-1/2  rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                    className="absolute right-3 top-1/2 h-10 -translate-y-1/2 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
                     aria-label={formData.showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {formData.showPassword ? <Eye size={17} /> : <EyeOff size={17} />}
+                    {formData.showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                   {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
                 </div>

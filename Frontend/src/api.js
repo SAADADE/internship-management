@@ -150,6 +150,14 @@ export function createStudentInternship(payload) {
   return apiRequest('/student/internships/', { method: 'POST', body: payload })
 }
 
+export function updateStudentInternship(internshipId, payload) {
+  return apiRequest(`/student/internships/${internshipId}/`, { method: 'PATCH', body: payload })
+}
+
+export function deleteStudentInternship(internshipId) {
+  return apiRequest(`/student/internships/${internshipId}/`, { method: 'DELETE', parseJson: false })
+}
+
 export function getStudentCompanies() {
   return apiRequest('/student/companies/')
 }
@@ -182,14 +190,22 @@ export function updateStudentLog(logId, payload) {
   return apiRequest(`/student/logs/${logId}/`, { method: 'PATCH', body: payload })
 }
 
+export function getStudentLog(logId) {
+  return apiRequest(`/student/logs/${logId}/`)
+}
+
+export function deleteStudentLog(logId) {
+  return apiRequest(`/student/logs/${logId}/`, { method: 'DELETE', parseJson: false })
+}
+
 export function saveReportDraft(payload) {
   return apiRequest('/student/report-draft/', { method: 'POST', body: payload })
 }
 
-export function generateStudentReport() {
+export function generateStudentReport(payload = {}) {
   return apiRequest('/student/generate-report/', {
     method: 'POST',
-    body: {},
+    body: payload,
     expectBlob: true,
     parseJson: false,
   })

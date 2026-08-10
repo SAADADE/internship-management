@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { FileText, Sparkles, Bold, Italic, Underline, List, ListOrdered, UploadCloud, CheckCircle, Download } from 'lucide-react'
-import { generateStudentReport, saveReportDraft, uploadStudentReportFile } from '../api'
+import { generateStudentReport, getStudentInternships, saveReportDraft, uploadStudentReportFile } from '../api'
 
 const sectionConfig = [
   { key: 'abstract', label: 'Abstract', placeholder: 'Summarize the purpose, methods, and key outcomes of your internship experience.' },
@@ -75,6 +75,36 @@ export default function GenerateReport() {
   const [mode, setMode] = useState('generate')
   const [selectedFile, setSelectedFile] = useState(null)
   const [generatedReport, setGeneratedReport] = useState(null)
+  const [showGeneratedModal, setShowGeneratedModal] = useState(false)
+  const [internships, setInternships] = useState([])
+  const [selectedInternshipId, setSelectedInternshipId] = useState('')
+
+  useEffect(() => {
+    let active = true
+
+    if (user?.role !== 'student') return undefined
+
+    getStudentInternships()
+      .then((response) => {
+        if (!active) return
+        const normalized = Array.isArray(response) ? response : []
+        setInternships(normalized)
+        setSelectedInternshipId((current) => current || normalized[0]?.internship_id || '')
+      })
+      .catch(() => {
+        if (!active) return
+        setInternships([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user?.role])
+
+  const selectedInternship = useMemo(
+    () => internships.find((item) => item.internship_id === selectedInternshipId) || internships[0] || null,
+    [internships, selectedInternshipId]
+  )
 
   useEffect(() => {
     return () => {
@@ -100,12 +130,7 @@ export default function GenerateReport() {
   }
 
   const handleCloseGeneratedReport = () => {
-    setGeneratedReport((current) => {
-      if (current?.url) {
-        window.URL.revokeObjectURL(current.url)
-      }
-      return null
-    })
+    setShowGeneratedModal(false)
   }
 
   const handleSubmit = async (e) => {
@@ -140,6 +165,12 @@ export default function GenerateReport() {
       return
     }
 
+    if (!selectedInternship) {
+      setSubmitted(false)
+      setMessage('Please select the internship you want this report to cover.')
+      return
+    }
+
     setLoading(true)
     setMessage('Saving your draft and generating the report...')
 
@@ -150,7 +181,7 @@ export default function GenerateReport() {
         conclusion: content.conclusion,
       })
 
-      const blob = await generateStudentReport()
+      const blob = await generateStudentReport({ internship_id: selectedInternship.internship_id })
       const nextUrl = window.URL.createObjectURL(blob)
       const nextFilename = `internship_report_${(user?.name || user?.username || 'student').replace(/\s+/g, '_').toLowerCase()}.docx`
 
@@ -162,6 +193,7 @@ export default function GenerateReport() {
       })
 
       setSubmitted(true)
+      setShowGeneratedModal(true)
       setMessage(`Your report draft for ${user?.name || 'the student'} is ready to download.`)
     } catch (err) {
       setSubmitted(false)
@@ -173,7 +205,7 @@ export default function GenerateReport() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 animate-fade-in">
-      {generatedReport && mode === 'generate' ? (
+      {generatedReport && showGeneratedModal && mode === 'generate' ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -223,6 +255,40 @@ export default function GenerateReport() {
           </button>
         </div>
 
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Select internship for this report</h2>
+            <p className="mt-1 text-sm text-gray-500">The report will only use reviewed logs from the internship you choose here.</p>
+          </div>
+          {internships.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <select
+                className="form-input"
+                value={selectedInternshipId}
+                onChange={(e) => setSelectedInternshipId(e.target.value)}
+              >
+                {internships.map((internship) => (
+                  <option key={internship.internship_id} value={internship.internship_id}>
+                    {internship.company_name} - {internship.internship_position || 'Internship'}
+                  </option>
+                ))}
+              </select>
+              <div className="text-sm text-gray-500 md:text-right">
+                {selectedInternship ? (
+                  <>
+                    <p className="font-medium text-gray-700">{selectedInternship.company_name}</p>
+                    <p>{selectedInternship.internship_position || 'Internship'}</p>
+                  </>
+                ) : (
+                  <p>No internship selected.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-amber-700">Register an internship first before generating a report.</p>
+          )}
+        </div>
+
         <form className="space-y-6" onSubmit={handleSubmit}>
           {mode === 'generate' ? (
             sectionConfig.map((section) => (
@@ -255,6 +321,23 @@ export default function GenerateReport() {
               {message}
             </div>
           )}
+
+          {generatedReport ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+              <div>
+                <h3 className="font-semibold text-emerald-900">Your report is ready</h3>
+                <p className="text-sm text-emerald-700">You can download it now or close the modal and return here later.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={handleDownloadGeneratedReport} className="btn-primary inline-flex items-center gap-2">
+                  <Download size={16} /> Download Report
+                </button>
+                <button type="button" onClick={handleCloseGeneratedReport} className="btn-secondary">
+                  Hide Success Message
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={loading} className="btn-primary disabled:opacity-70">

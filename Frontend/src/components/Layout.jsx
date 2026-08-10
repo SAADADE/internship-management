@@ -6,7 +6,9 @@ import { useLocation } from 'react-router-dom'
 const PAGE_META = {
   '/dashboard':            { title: 'Dashboard' },
   '/internship/register':  { title: 'Internship Registration' },
+  '/internship/my-registrations': { title: 'My Internships' },
   '/reports':              { title: 'My Reports' },
+  '/reports/logs/:id':     { title: 'Weekly Log Details' },
   '/reports/upload':       { title: 'Upload Report' },
   '/supervisor':           { title: 'Supervisor Dashboard' },
   '/admin':                { title: 'Admin Dashboard' },
@@ -14,10 +16,16 @@ const PAGE_META = {
   '/profile':              { title: 'My Profile' },
 }
 
+function resolvePageMeta(pathname) {
+  if (PAGE_META[pathname]) return PAGE_META[pathname]
+  if (/^\/reports\/logs\/[^/]+$/.test(pathname)) return PAGE_META['/reports/logs/:id']
+  return { title: 'InternDO', breadcrumb: '' }
+}
+
 export default function Layout({ children, fullWidth = false }) {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
-  const meta = PAGE_META[location.pathname] || { title: 'InternDO', breadcrumb: '' }
+  const meta = resolvePageMeta(location.pathname)
 
   const sidebarWidth = collapsed ? 'ml-16' : 'ml-60'
 

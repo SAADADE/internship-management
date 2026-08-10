@@ -161,6 +161,76 @@ class BackendApiTests(TestCase):
         self.assertEqual(saved_internship.start_date, date(2026, 7, 1))
         self.assertEqual(saved_internship.end_date, date(2026, 9, 30))
 
+    def test_student_can_update_own_internship(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+        internship = Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+            internship_supervisor="Mr. Mensah",
+            internship_duration="2026-07-01 to 2026-09-30",
+            start_date="2026-07-01",
+            end_date="2026-09-30",
+        )
+
+        response = self.client.patch(
+            f"/api/student/internships/{internship.internship_id}/",
+            {
+                "company_name": "ACME Technologies",
+                "department": "Platform Team",
+                "description": "Updated scope",
+                "start_date": "2026-07-05",
+                "end_date": "2026-10-01",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        internship.refresh_from_db()
+        self.assertEqual(internship.company_name, "ACME Technologies")
+        self.assertEqual(internship.department, "Platform Team")
+        self.assertEqual(internship.description, "Updated scope")
+        self.assertEqual(internship.start_date, date(2026, 7, 5))
+        self.assertEqual(internship.end_date, date(2026, 10, 1))
+
+    def test_student_can_delete_own_internship(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+        internship = Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+        )
+
+        response = self.client.delete(f"/api/student/internships/{internship.internship_id}/")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Internship.objects.filter(internship_id=internship.internship_id).exists())
+
+    def test_student_cannot_modify_another_students_internship(self):
+        owner_user, owner_student = self.create_student_user(username="owner", email="owner@example.com")
+        other_user, _ = self.create_student_user(username="other", email="other@example.com")
+        internship = Internship.objects.create(
+            student=owner_student,
+            company_name="Owner Corp",
+            internship_position="Intern",
+        )
+
+        self.client.force_authenticate(other_user)
+
+        patch_response = self.client.patch(
+            f"/api/student/internships/{internship.internship_id}/",
+            {"company_name": "Tampered Corp"},
+            format="json",
+        )
+        delete_response = self.client.delete(f"/api/student/internships/{internship.internship_id}/")
+
+        self.assertEqual(patch_response.status_code, 404)
+        self.assertEqual(delete_response.status_code, 404)
+        internship.refresh_from_db()
+        self.assertEqual(internship.company_name, "Owner Corp")
+
     def test_student_log_creation(self):
         user, student = self.create_student_user()
         self.client.force_authenticate(user)
@@ -275,6 +345,61 @@ class BackendApiTests(TestCase):
         self.assertGreaterEqual(len(response.data), 3)
         self.assertTrue(any(item["source"] == "log" and item["company_name"] == "ACME Corp" for item in response.data))
         self.assertTrue(any(item["source"] == "report" for item in response.data))
+
+    def test_student_can_view_and_delete_own_unreviewed_log(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+
+        log = Log.objects.create(
+            student=student,
+            log_text="Week 4 update",
+            achievements="Closed sprint tasks",
+            status="submitted",
+            week_number=4,
+            log_date="2026-08-20",
+            company_name="ACME Corp",
+        )
+
+        get_response = self.client.get(f"/api/student/logs/{log.log_id}/")
+        delete_response = self.client.delete(f"/api/student/logs/{log.log_id}/")
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.data["week_number"], 4)
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(Log.objects.filter(log_id=log.log_id).exists())
+
+    def test_student_cannot_delete_reviewed_or_other_student_log(self):
+        owner_user, owner_student = self.create_student_user(username="owner2", email="owner2@example.com")
+        other_user, _ = self.create_student_user(username="other2", email="other2@example.com")
+
+        reviewed_log = Log.objects.create(
+            student=owner_student,
+            log_text="Reviewed week",
+            status="reviewed",
+            week_number=5,
+            log_date="2026-08-27",
+        )
+
+        other_log = Log.objects.create(
+            student=owner_student,
+            log_text="Owner week",
+            status="submitted",
+            week_number=6,
+            log_date="2026-09-03",
+        )
+
+        self.client.force_authenticate(owner_user)
+        reviewed_delete = self.client.delete(f"/api/student/logs/{reviewed_log.log_id}/")
+
+        self.client.force_authenticate(other_user)
+        foreign_get = self.client.get(f"/api/student/logs/{other_log.log_id}/")
+        foreign_delete = self.client.delete(f"/api/student/logs/{other_log.log_id}/")
+
+        self.assertEqual(reviewed_delete.status_code, 400)
+        self.assertEqual(foreign_get.status_code, 404)
+        self.assertEqual(foreign_delete.status_code, 404)
+        self.assertTrue(Log.objects.filter(log_id=reviewed_log.log_id).exists())
+        self.assertTrue(Log.objects.filter(log_id=other_log.log_id).exists())
 
     def test_student_feedback_endpoint_returns_only_feedback_from_connected_supervisor(self):
         user, student = self.create_student_user()
@@ -419,8 +544,16 @@ class BackendApiTests(TestCase):
     def test_report_draft_and_generate_report_work(self):
         user, student = self.create_student_user()
         self.client.force_authenticate(user)
+        internship = Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+            internship_supervisor="Mr. Mensah",
+            internship_duration="2026-07-01 to 2026-09-30",
+        )
         Log.objects.create(
             student=student,
+            internship=internship,
             log_text="Approved work",
             status="reviewed",
             log_date="2026-07-30",
@@ -452,7 +585,11 @@ class BackendApiTests(TestCase):
         with patch("report_generator.views.generate_report_structure", return_value={"title": "Demo report"}) as mock_generate, patch(
             "report_generator.views.build_docx", return_value=b"docx-bytes"
         ) as mock_build:
-            response = self.client.post("/api/student/generate-report/", {}, format="json")
+            response = self.client.post(
+                "/api/student/generate-report/",
+                {"internship_id": str(internship.internship_id)},
+                format="json",
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
@@ -465,6 +602,78 @@ class BackendApiTests(TestCase):
         self.assertEqual(len(generate_kwargs["student_logs"]), 1)
         self.assertEqual(generate_kwargs["student_logs"][0]["company_name"], "ACME Corp")
         self.assertEqual(generate_kwargs["student_logs"][0]["daily_entries"][0]["day"], "Monday")
+
+    def test_generate_report_uses_only_selected_internship_logs(self):
+        user, student = self.create_student_user()
+        self.client.force_authenticate(user)
+        internship_a = Internship.objects.create(
+            student=student,
+            company_name="ACME Corp",
+            internship_position="Software Engineering",
+        )
+        internship_b = Internship.objects.create(
+            student=student,
+            company_name="BlueTech Ltd",
+            internship_position="Data Analytics",
+        )
+
+        Log.objects.create(
+            student=student,
+            internship=internship_a,
+            log_text="ACME reviewed work",
+            status="reviewed",
+            log_date="2026-07-30",
+            week_number=2,
+            company_name="ACME Corp",
+            department_unit="Engineering",
+            supervisor_name="Mr. Mensah",
+            achievements="Completed tasks for ACME",
+            daily_entries=[{"day": "Monday", "tasks": "ACME tasks", "skills": "Django", "challenges": "None", "solutions": "N/A"}],
+        )
+        Log.objects.create(
+            student=student,
+            internship=internship_b,
+            log_text="BlueTech reviewed work",
+            status="reviewed",
+            log_date="2026-08-06",
+            week_number=3,
+            company_name="BlueTech Ltd",
+            department_unit="Analytics",
+            supervisor_name="Dr. K",
+            achievements="Completed tasks for BlueTech",
+            daily_entries=[{"day": "Tuesday", "tasks": "BlueTech tasks", "skills": "Pandas", "challenges": "None", "solutions": "N/A"}],
+        )
+
+        draft_response = self.client.post(
+            "/api/student/report-draft/",
+            {
+                "introduction": "Introduction text",
+                "abstract": "Abstract text",
+                "conclusion": "Conclusion text",
+                "department": "Software Engineering",
+                "company_name": "ACME Corp",
+                "supervisor_name": "Mr. Mensah",
+                "additional_notes": "All good",
+            },
+            format="json",
+        )
+        self.assertEqual(draft_response.status_code, 201)
+
+        with patch("report_generator.views.generate_report_structure", return_value={"title": "Demo report"}) as mock_generate, patch(
+            "report_generator.views.build_docx", return_value=b"docx-bytes"
+        ):
+            response = self.client.post(
+                "/api/student/generate-report/",
+                {"internship_id": str(internship_a.internship_id)},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        generate_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(len(generate_kwargs["student_logs"]), 1)
+        self.assertEqual(generate_kwargs["student_logs"][0]["company_name"], "ACME Corp")
+        self.assertIn("ACME reviewed work", generate_kwargs["document_text"])
+        self.assertNotIn("BlueTech reviewed work", generate_kwargs["document_text"])
 
     def test_student_companies_endpoint_returns_companies(self):
         user, _ = self.create_student_user()
