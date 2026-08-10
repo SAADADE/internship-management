@@ -187,22 +187,6 @@ export default function StudentDashboard() {
               ))}
             </div>
           </div>
-
-          {/* Upcoming deadlines */}
-          <div className="card p-5 border-l-4 border-amber-400">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertCircle size={16} className="text-amber-500" />
-              <h4 className="font-heading font-semibold text-sm text-gray-800">Upcoming Deadlines</h4>
-            </div>
-            <div className="space-y-2.5">
-              {deadlines.map(d => (
-                <div key={d.label} className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600 font-body">{d.label}</p>
-                  <span className={d.badge}>{d.due}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
