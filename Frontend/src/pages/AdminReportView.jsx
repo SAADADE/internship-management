@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Document, Page, pdfjs } from 'react-pdf'
+import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
   MessageSquare, Download
 } from 'lucide-react'
 import { downloadAdminReportFile, getAdminReportDetail, getAdminReportPreviewBlob, updateAdminReportDetail } from '../api'
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
+pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker()
 
 export default function AdminReportView() {
   const navigate = useNavigate()
@@ -172,7 +170,7 @@ export default function AdminReportView() {
         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
           <CheckCircle size={38} className="text-primary-600" />
         </div>
-        <h2 className="mb-2 font-heading text-xl font-bold text-gray-900">Feedback Submitted ✅</h2>
+        <h2 className="mb-2 font-heading text-xl font-bold text-gray-900">Feedback Submitted</h2>
         <p className="mb-2 text-sm text-gray-500">
           Your review for <strong>{report.studentName}</strong>'s report has been recorded.
         </p>
