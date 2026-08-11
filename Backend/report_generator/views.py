@@ -1570,18 +1570,34 @@ class AdminReportsIndexView(APIView):
     permission_classes = [IsAdminStaffUser]
 
     def get(self, request):
+        appraisal_by_student = {
+            appraisal.student_id: appraisal
+            for appraisal in Appraisal.objects.select_related("student", "supervisor").order_by("-submitted_at")
+        }
+
         final_reports = []
         for report in Report.objects.select_related("student").order_by("-created_at"):
+            student = report.student
+            appraisal = appraisal_by_student.get(student.student_id)
             final_reports.append(
                 {
                     "id": str(report.report_id),
-                    "studentName": f"{report.student.first_name} {report.student.last_name}".strip() or report.student.sch_email,
-                    "studentId": report.student.index_number,
-                    "department": report.student.department,
+                    "studentKey": str(student.student_id),
+                    "studentName": f"{student.first_name} {student.last_name}".strip() or student.sch_email,
+                    "studentId": student.index_number,
+                    "studentUuid": str(student.student_id),
+                    "department": student.department,
                     "title": "Final Internship Report",
                     "submittedOn": report.created_at.date().isoformat(),
                     "status": report.status,
                     "hasFile": bool((report.report_file or "").strip()),
+                    "reportViewPath": f"/admin/reports/{report.report_id}",
+                    "reportFileName": os.path.basename(report.report_file) if (report.report_file or "").strip() else "",
+                    "appraisalSubmitted": appraisal is not None,
+                    "appraisalId": str(appraisal.appraisal_id) if appraisal else "",
+                    "appraisalSupervisor": appraisal.supervisor.fullname if appraisal and appraisal.supervisor else "",
+                    "appraisalSubmittedOn": appraisal.submitted_at.date().isoformat() if appraisal and appraisal.submitted_at else "",
+                    "appraisalViewPath": f"/admin/appraisals/{appraisal.appraisal_id}" if appraisal else "",
                 }
             )
 
@@ -1590,10 +1606,13 @@ class AdminReportsIndexView(APIView):
             appraisal_forms.append(
                 {
                     "id": str(appraisal.appraisal_id),
+                    "studentKey": str(appraisal.student.student_id),
                     "studentName": f"{appraisal.student.first_name} {appraisal.student.last_name}".strip() or appraisal.student.sch_email,
                     "studentId": appraisal.student.index_number,
+                    "department": appraisal.student.department,
                     "supervisorName": appraisal.supervisor.fullname,
                     "submittedOn": appraisal.submitted_at.date().isoformat(),
+                    "viewPath": f"/admin/appraisals/{appraisal.appraisal_id}",
                 }
             )
 
