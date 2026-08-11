@@ -175,9 +175,8 @@ backend_is_https = backend_url.startswith("https://")
 
 # In production we often serve frontend and backend on different origins.
 # If FRONTEND_URL is missing, fall back to BACKEND_URL + non-debug mode.
-is_cross_site_frontend = force_cross_site_cookies or (
-    (bool(frontend_url) and not frontend_is_local)
-    or (not DEBUG and backend_is_https)
+is_cross_site_frontend = force_cross_site_cookies or not DEBUG or (
+    bool(frontend_url) and not frontend_is_local and backend_is_https
 )
 
 if is_cross_site_frontend:

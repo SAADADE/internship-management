@@ -1500,7 +1500,7 @@ class AdminStudentDetailView(APIView):
         report_download_url = ""
         if latest_report and (latest_report.report_file or "").strip():
             report_file_name = os.path.basename(latest_report.report_file)
-            report_download_url = f"/api/admin/reports/{latest_report.report_id}/download/"
+            report_download_url = request.build_absolute_uri(f"/api/admin/reports/{latest_report.report_id}/download/")
 
         payload = {
             "id": str(student.student_id),
@@ -1598,8 +1598,8 @@ class AdminReportDetailView(APIView):
             "feedback": report.supervisor_feedback or "",
             "reportFileSubmitted": bool((report.report_file or "").strip()),
             "reportFileName": os.path.basename(report.report_file) if (report.report_file or "").strip() else "",
-            "reportDownloadUrl": f"/api/admin/reports/{report.report_id}/download/" if (report.report_file or "").strip() else "",
-            "reportPreviewUrl": f"/api/admin/reports/{report.report_id}/preview/" if ((report.report_file or "").strip() and (os.path.basename(report.report_file).lower().endswith('.pdf'))) else "",
+            "reportDownloadUrl": request.build_absolute_uri(f"/api/admin/reports/{report.report_id}/download/") if (report.report_file or "").strip() else "",
+            "reportPreviewUrl": request.build_absolute_uri(f"/api/admin/reports/{report.report_id}/preview/") if ((report.report_file or "").strip() and (os.path.basename(report.report_file).lower().endswith('.pdf'))) else "",
         }
         return Response(payload)
 

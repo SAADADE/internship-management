@@ -45,7 +45,7 @@ export default function AdminReportView() {
 
       setPreviewLoading(true)
       try {
-        const blob = await getAdminReportPreviewBlob(id)
+        const blob = await getAdminReportPreviewBlob(report.reportPreviewUrl)
         if (!cancelled) {
           setPreviewBlob(blob)
         }
@@ -94,7 +94,7 @@ export default function AdminReportView() {
 
     setDownloading(true)
     try {
-      const blob = await downloadAdminReportFile(id)
+      const blob = await downloadAdminReportFile(report.reportDownloadUrl)
       const fileName = report?.reportFileName || 'uploaded-report'
       const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')

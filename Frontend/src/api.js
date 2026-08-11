@@ -102,6 +102,45 @@ export async function apiRequest(path, { method = 'GET', body, auth, headers = {
   return response.text()
 }
 
+export async function fetchProtectedBlob(pathOrUrl) {
+  let response
+  try {
+    response = await fetch(resolveApiUrl(pathOrUrl), {
+      credentials: 'include',
+    })
+  } catch (error) {
+    throw new Error('Unable to reach the server. Please make sure the backend is running and try again.')
+  }
+
+  if (!response.ok) {
+    let errorData = null
+    try {
+      errorData = await response.json()
+    } catch {
+      errorData = null
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Your session is not active. Please log out and sign in again.')
+    }
+
+    const message = (() => {
+      if (!errorData) return `Request failed with status ${response.status}`
+      if (typeof errorData === 'string') return errorData
+      if (errorData.detail) return errorData.detail
+      if (errorData.error) return errorData.error
+      if (Array.isArray(errorData.non_field_errors) && errorData.non_field_errors.length) {
+        return errorData.non_field_errors[0]
+      }
+      return JSON.stringify(errorData)
+    })()
+
+    throw new Error(message)
+  }
+
+  return response.blob()
+}
+
 export function registerUser(payload) {
   return apiRequest('/auth/register/', { method: 'POST', body: payload })
 }
@@ -322,16 +361,10 @@ export function getAdminReportDownloadUrl(reportId) {
   return resolveApiUrl(`/admin/reports/${reportId}/download/`)
 }
 
-export function getAdminReportPreviewBlob(reportId) {
-  return apiRequest(`/admin/reports/${reportId}/preview/`, {
-    expectBlob: true,
-    parseJson: false,
-  })
+export function getAdminReportPreviewBlob(pathOrUrl) {
+  return fetchProtectedBlob(pathOrUrl)
 }
 
-export function downloadAdminReportFile(reportId) {
-  return apiRequest(`/admin/reports/${reportId}/download/`, {
-    expectBlob: true,
-    parseJson: false,
-  })
+export function downloadAdminReportFile(pathOrUrl) {
+  return fetchProtectedBlob(pathOrUrl)
 }
