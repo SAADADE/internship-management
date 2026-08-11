@@ -321,3 +321,10 @@ export function getAdminAppraisalDetail(appraisalId) {
 export function getAdminReportDownloadUrl(reportId) {
   return resolveApiUrl(`/admin/reports/${reportId}/download/`)
 }
+
+export function downloadAdminReportFile(reportId) {
+  return apiRequest(`/admin/reports/${reportId}/download/`, {
+    expectBlob: true,
+    parseJson: false,
+  })
+}

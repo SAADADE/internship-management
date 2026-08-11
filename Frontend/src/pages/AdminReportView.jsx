@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Document, Page, pdfjs } from 'react-pdf'
 import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
   MessageSquare, Download
 } from 'lucide-react'
-import { getAdminReportDetail, resolveApiUrl, updateAdminReportDetail } from '../api'
+import { downloadAdminReportFile, getAdminReportDetail, resolveApiUrl, updateAdminReportDetail } from '../api'
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
 
 export default function AdminReportView() {
   const navigate = useNavigate()
@@ -18,9 +24,17 @@ export default function AdminReportView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [report, setReport] = useState(null)
+  const [downloading, setDownloading] = useState(false)
+  const [previewPages, setPreviewPages] = useState(0)
+  const [previewError, setPreviewError] = useState('')
 
   const hasReportFile = Boolean(report?.reportFileSubmitted && report?.reportDownloadUrl)
   const canPreviewPdf = Boolean(report?.reportPreviewUrl)
+
+  useEffect(() => {
+    setPreviewPages(0)
+    setPreviewError('')
+  }, [report?.reportPreviewUrl])
 
   useEffect(() => {
     const loadReport = async () => {
@@ -43,6 +57,28 @@ export default function AdminReportView() {
 
     loadReport()
   }, [id])
+
+  const handleDownload = async () => {
+    if (!hasReportFile) return
+
+    setDownloading(true)
+    try {
+      const blob = await downloadAdminReportFile(id)
+      const fileName = report?.reportFileName || `${report?.title || 'report'}.pdf`
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      alert(err.message || 'Unable to download the report file.')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!comment.trim()) {
@@ -150,22 +186,74 @@ export default function AdminReportView() {
               <p className="text-xs text-gray-500">Preview directly in-app</p>
             </div>
             {hasReportFile ? (
-              <a
-                href={resolveApiUrl(report.reportDownloadUrl)}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-800"
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-800 disabled:cursor-not-allowed disabled:bg-primary-400"
               >
-                <Download size={15} /> Download
-              </a>
+                {downloading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} /> Download
+                  </>
+                )}
+              </button>
             ) : null}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
             {hasReportFile && canPreviewPdf ? (
-              <iframe
-                title="Submitted report preview"
-                src={`${resolveApiUrl(report.reportPreviewUrl)}#view=FitH`}
-                className="h-full w-full"
-              />
+              <div className="flex min-h-full justify-center bg-slate-50 p-4">
+                <Document
+                  file={resolveApiUrl(report.reportPreviewUrl)}
+                  options={{ withCredentials: true }}
+                  loading={(
+                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
+                      Loading PDF preview...
+                    </div>
+                  )}
+                  error={(
+                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                      <div>
+                        <p className="font-semibold">PDF preview unavailable.</p>
+                        <p className="mt-1">Use the download button to open the uploaded report file.</p>
+                      </div>
+                    </div>
+                  )}
+                  onLoadSuccess={({ numPages }) => {
+                    setPreviewPages(numPages)
+                    setPreviewError('')
+                  }}
+                  onLoadError={(err) => {
+                    setPreviewPages(0)
+                    setPreviewError(err?.message || 'Unable to load PDF preview.')
+                  }}
+                  className="flex flex-col gap-4"
+                >
+                  {previewError ? (
+                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                      <div>
+                        <p className="font-semibold">PDF preview unavailable.</p>
+                        <p className="mt-1">{previewError}</p>
+                      </div>
+                    </div>
+                  ) : Array.from({ length: previewPages }, (_, index) => (
+                    <Page
+                      key={`report-page-${index + 1}`}
+                      pageNumber={index + 1}
+                      width={900}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="mx-auto rounded-lg border border-gray-200 bg-white shadow-sm"
+                    />
+                  ))}
+                </Document>
+              </div>
             ) : hasReportFile ? (
               <div className="flex h-full items-center justify-center p-6 text-center">
                 <div className="max-w-md rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
