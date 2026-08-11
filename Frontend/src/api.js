@@ -322,6 +322,13 @@ export function getAdminReportDownloadUrl(reportId) {
   return resolveApiUrl(`/admin/reports/${reportId}/download/`)
 }
 
+export function getAdminReportPreviewBlob(reportId) {
+  return apiRequest(`/admin/reports/${reportId}/preview/`, {
+    expectBlob: true,
+    parseJson: false,
+  })
+}
+
 export function downloadAdminReportFile(reportId) {
   return apiRequest(`/admin/reports/${reportId}/download/`, {
     expectBlob: true,

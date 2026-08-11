@@ -5,7 +5,7 @@ import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
   MessageSquare, Download
 } from 'lucide-react'
-import { downloadAdminReportFile, getAdminReportDetail, resolveApiUrl, updateAdminReportDetail } from '../api'
+import { downloadAdminReportFile, getAdminReportDetail, getAdminReportPreviewBlob, updateAdminReportDetail } from '../api'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -25,6 +25,8 @@ export default function AdminReportView() {
   const [error, setError] = useState('')
   const [report, setReport] = useState(null)
   const [downloading, setDownloading] = useState(false)
+  const [previewBlob, setPreviewBlob] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [previewPages, setPreviewPages] = useState(0)
   const [previewError, setPreviewError] = useState('')
 
@@ -34,7 +36,36 @@ export default function AdminReportView() {
   useEffect(() => {
     setPreviewPages(0)
     setPreviewError('')
-  }, [report?.reportPreviewUrl])
+    setPreviewBlob(null)
+
+    let cancelled = false
+
+    const loadPreview = async () => {
+      if (!canPreviewPdf) return
+
+      setPreviewLoading(true)
+      try {
+        const blob = await getAdminReportPreviewBlob(id)
+        if (!cancelled) {
+          setPreviewBlob(blob)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewError(err.message || 'Unable to load PDF preview.')
+        }
+      } finally {
+        if (!cancelled) {
+          setPreviewLoading(false)
+        }
+      }
+    }
+
+    loadPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, canPreviewPdf, report?.reportPreviewUrl])
 
   useEffect(() => {
     const loadReport = async () => {
@@ -64,7 +95,7 @@ export default function AdminReportView() {
     setDownloading(true)
     try {
       const blob = await downloadAdminReportFile(id)
-      const fileName = report?.reportFileName || `${report?.title || 'report'}.pdf`
+      const fileName = report?.reportFileName || 'uploaded-report'
       const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = objectUrl
@@ -208,52 +239,60 @@ export default function AdminReportView() {
 
           <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
             {hasReportFile && canPreviewPdf ? (
-              <div className="flex min-h-full justify-center bg-slate-50 p-4">
-                <Document
-                  file={resolveApiUrl(report.reportPreviewUrl)}
-                  options={{ withCredentials: true }}
-                  loading={(
-                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
-                      Loading PDF preview...
+              previewLoading ? (
+                <div className="flex h-full items-center justify-center p-6 text-center">
+                  <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
+                    Loading PDF preview...
+                  </div>
+                </div>
+              ) : previewError ? (
+                <div className="flex h-full items-center justify-center p-6 text-center">
+                  <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                    <div>
+                      <p className="font-semibold">PDF preview unavailable.</p>
+                      <p className="mt-1">{previewError}</p>
                     </div>
-                  )}
-                  error={(
-                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
-                      <div>
-                        <p className="font-semibold">PDF preview unavailable.</p>
-                        <p className="mt-1">Use the download button to open the uploaded report file.</p>
+                  </div>
+                </div>
+              ) : previewBlob ? (
+                <div className="flex min-h-full justify-center bg-slate-50 p-4">
+                  <Document
+                    file={previewBlob}
+                    loading={(
+                      <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
+                        Rendering PDF preview...
                       </div>
-                    </div>
-                  )}
-                  onLoadSuccess={({ numPages }) => {
-                    setPreviewPages(numPages)
-                    setPreviewError('')
-                  }}
-                  onLoadError={(err) => {
-                    setPreviewPages(0)
-                    setPreviewError(err?.message || 'Unable to load PDF preview.')
-                  }}
-                  className="flex flex-col gap-4"
-                >
-                  {previewError ? (
-                    <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
-                      <div>
-                        <p className="font-semibold">PDF preview unavailable.</p>
-                        <p className="mt-1">{previewError}</p>
+                    )}
+                    error={(
+                      <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                        <div>
+                          <p className="font-semibold">PDF preview unavailable.</p>
+                          <p className="mt-1">Use the download button to open the uploaded report file.</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : Array.from({ length: previewPages }, (_, index) => (
-                    <Page
-                      key={`report-page-${index + 1}`}
-                      pageNumber={index + 1}
-                      width={900}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                      className="mx-auto rounded-lg border border-gray-200 bg-white shadow-sm"
-                    />
-                  ))}
-                </Document>
-              </div>
+                    )}
+                    onLoadSuccess={({ numPages }) => {
+                      setPreviewPages(numPages)
+                    }}
+                    onLoadError={(err) => {
+                      setPreviewPages(0)
+                      setPreviewError(err?.message || 'Unable to render PDF preview.')
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    {Array.from({ length: previewPages }, (_, index) => (
+                      <Page
+                        key={`report-page-${index + 1}`}
+                        pageNumber={index + 1}
+                        width={900}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                        className="mx-auto rounded-lg border border-gray-200 bg-white shadow-sm"
+                      />
+                    ))}
+                  </Document>
+                </div>
+              ) : null
             ) : hasReportFile ? (
               <div className="flex h-full items-center justify-center p-6 text-center">
                 <div className="max-w-md rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
