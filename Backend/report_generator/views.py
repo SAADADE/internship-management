@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login
 from django.core.mail import send_mail
 from django.core.files.storage import default_storage
+from django.core import signing
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Q
 from django.http import FileResponse, HttpResponse
@@ -54,6 +55,45 @@ class IsAdminStaffUser(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
         return bool(request.user and request.user.is_active and request.user.is_staff)
+
+
+REPORT_FILE_LINK_SALT = "admin-report-file-link"
+REPORT_FILE_LINK_MAX_AGE = 60 * 30
+
+
+def _build_report_file_link(report_id, purpose, request):
+    token = signing.dumps(
+        {
+            "report_id": str(report_id),
+            "purpose": purpose,
+        },
+        salt=REPORT_FILE_LINK_SALT,
+    )
+    return request.build_absolute_uri(f"/api/admin/reports/{report_id}/{purpose}/?token={token}")
+
+
+def _is_valid_report_file_token(token, report_id, purpose):
+    if not token:
+        return False
+
+    try:
+        payload = signing.loads(token, salt=REPORT_FILE_LINK_SALT, max_age=REPORT_FILE_LINK_MAX_AGE)
+    except signing.BadSignature:
+        return False
+
+    return payload.get("report_id") == str(report_id) and payload.get("purpose") == purpose
+
+
+class IsAdminStaffOrSignedReportFileLink(IsAuthenticated):
+    file_link_purpose = ""
+
+    def has_permission(self, request, view):
+        if super().has_permission(request, view) and bool(request.user and request.user.is_active and request.user.is_staff):
+            return True
+
+        report_id = view.kwargs.get("report_id")
+        token = request.query_params.get("token", "")
+        return bool(report_id and _is_valid_report_file_token(token, report_id, getattr(view, "file_link_purpose", self.file_link_purpose)))
 
 
 from rest_framework.response import Response
@@ -1500,7 +1540,7 @@ class AdminStudentDetailView(APIView):
         report_download_url = ""
         if latest_report and (latest_report.report_file or "").strip():
             report_file_name = os.path.basename(latest_report.report_file)
-            report_download_url = request.build_absolute_uri(f"/api/admin/reports/{latest_report.report_id}/download/")
+            report_download_url = _build_report_file_link(latest_report.report_id, "download", request)
 
         payload = {
             "id": str(student.student_id),
@@ -1598,8 +1638,8 @@ class AdminReportDetailView(APIView):
             "feedback": report.supervisor_feedback or "",
             "reportFileSubmitted": bool((report.report_file or "").strip()),
             "reportFileName": os.path.basename(report.report_file) if (report.report_file or "").strip() else "",
-            "reportDownloadUrl": request.build_absolute_uri(f"/api/admin/reports/{report.report_id}/download/") if (report.report_file or "").strip() else "",
-            "reportPreviewUrl": request.build_absolute_uri(f"/api/admin/reports/{report.report_id}/preview/") if ((report.report_file or "").strip() and (os.path.basename(report.report_file).lower().endswith('.pdf'))) else "",
+            "reportDownloadUrl": _build_report_file_link(report.report_id, "download", request) if (report.report_file or "").strip() else "",
+            "reportPreviewUrl": _build_report_file_link(report.report_id, "preview", request) if ((report.report_file or "").strip() and (os.path.basename(report.report_file).lower().endswith('.pdf'))) else "",
         }
         return Response(payload)
 
@@ -1641,7 +1681,8 @@ class AdminAppraisalDetailView(APIView):
 
 
 class AdminReportDownloadView(APIView):
-    permission_classes = [IsAdminStaffUser]
+    permission_classes = [IsAdminStaffOrSignedReportFileLink]
+    file_link_purpose = "download"
 
     def _resolve_report_file(self, report_id):
         report = Report.objects.filter(report_id=report_id).first()
@@ -1669,7 +1710,8 @@ class AdminReportDownloadView(APIView):
 
 
 class AdminReportPreviewView(AdminReportDownloadView):
-    permission_classes = [IsAdminStaffUser]
+    permission_classes = [IsAdminStaffOrSignedReportFileLink]
+    file_link_purpose = "preview"
 
     def get(self, request, report_id):
         _, file_path, error_response = self._resolve_report_file(report_id)
