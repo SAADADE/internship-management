@@ -101,8 +101,8 @@ export default function SupervisorReports() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 font-heading">Weekly Reports</h1>
-          <p className="text-gray-500 mt-1">Review and manage student internship reports</p>
+          <h1 className="text-3xl font-bold text-gray-900 font-heading">Weekly Logs</h1>
+          <p className="text-gray-500 mt-1">Review and manage student weekly logs</p>
         </div>
         <div className="flex gap-3">
         </div>

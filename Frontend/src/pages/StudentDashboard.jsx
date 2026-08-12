@@ -60,28 +60,24 @@ export default function StudentDashboard() {
       label: 'Internship Status',
       value: summary?.stats?.internship_status || 'Not Registered',
       color: 'green',
-      trendLabel: summary?.student?.department ? `Registered — ${summary.student.department}` : 'Registered',
     },
     {
       icon: FileText,
       label: 'Reports Submitted',
       value: summary?.stats?.reports_submitted?.toString() || '0',
       color: 'blue',
-      trendLabel: 'Database-backed',
     },
     {
       icon: Clock,
       label: 'Pending Reviews',
       value: summary?.stats?.pending_reviews?.toString() || '0',
       color: 'amber',
-      trendLabel: 'Awaiting supervisor',
     },
     {
       icon: MessageSquare,
       label: 'Feedback Received',
       value: summary?.stats?.feedback_received?.toString() || '0',
       color: 'purple',
-      trendLabel: 'From supervisor',
     },
   ], [summary])
 

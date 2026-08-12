@@ -50,7 +50,6 @@ export default function AdminReports() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold text-gray-900 font-heading">Student Final Reports & Appraisals</h1>
-        <p className="text-gray-500">Review submitted final reports from students and appraisal forms from supervisors.</p>
       </div>
 
       <div className="card p-4">
@@ -91,13 +90,17 @@ export default function AdminReports() {
                   <td className="table-cell font-mono text-xs text-gray-600">{row.studentId}</td>
                   <td className="table-cell text-gray-600">{row.department || '-'}</td>
                   <td className="table-cell text-gray-500">
-                    <button
-                      type="button"
-                      onClick={() => navigate(row.reportViewPath)}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
-                    >
-                      <Eye size={14} /> View report
-                    </button>
+                    {row.hasFile ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(row.reportViewPath)}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
+                      >
+                        <Eye size={14} /> View report
+                      </button>
+                    ) : (
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">Not submitted</span>
+                    )}
                   </td>
                   <td className="table-cell">
                     <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
