@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Eye, EyeOff, GraduationCap, ArrowRight, CheckCircle } from 'lucide-react'
 import { registerUser } from '../api'
 import { saveProfile } from '../utils/storage'

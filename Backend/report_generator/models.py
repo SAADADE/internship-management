@@ -226,7 +226,7 @@ class Log(models.Model):
     STATUS_CHOICES = [
         ("draft", "Draft"),
         ("submitted", "Submitted"),
-        ("accepted", "Accepted"),
+        ("reviewed", "Reviewed"),
         ("needs_revision", "Needs Revision"),
     ]
 
@@ -306,13 +306,13 @@ class Review(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         if self.log is not None:
-            next_status = "accepted" if self.decision == "approved" else "needs_revision"
+            next_status = "reviewed" if self.decision == "approved" else "needs_revision"
             if self.log.status != next_status:
                 self.log.status = next_status
                 self.log.save(update_fields=["status", "updated_at"])
 
     def __str__(self):
-        return f"{self.log} - {self.decision or 'accepted'}"
+        return f"{self.log} - {self.decision or 'reviewed'}"
 
 
 LogFeedback = Review

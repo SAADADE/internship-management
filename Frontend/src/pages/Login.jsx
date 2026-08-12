@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, GraduationCap, ArrowRight, CheckCircle } from 'lucide-react'
 
@@ -200,6 +200,9 @@ export default function Login() {
             >
               Sign up
             </button>
+          </p>
+          <p className="text-center text-xs text-gray-400 mt-2">
+            By signing in, you agree to our <Link to="/terms" className="text-primary-700 hover:text-primary-900 transition-colors">Terms of Service</Link> and <Link to="/privacy" className="text-primary-700 hover:text-primary-900 transition-colors">Privacy Policy</Link>.
           </p>
           <p className="text-center text-xs text-gray-400 mt-4">
             © {new Date().getFullYear()} InternDo. All rights reserved.
