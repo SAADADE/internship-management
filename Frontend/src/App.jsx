@@ -25,6 +25,7 @@ import AdminStudents from './pages/AdminStudents'
 import AdminStudentView from './pages/AdminStudentView'
 import AdminReports from './pages/AdminReports'
 import AdminAppraisalView from './pages/AdminAppraisalView'
+import Privacy from './pages/Privacy'
 import AdminReportView from './pages/AdminReportView'
 import Layout from './components/Layout'
 
@@ -176,6 +177,10 @@ export default function App() {
             <ProtectedRoute roles={['admin']}>
               <Layout><AdminReportView /></Layout>
             </ProtectedRoute>
+          } />
+          <Route path="/privacy" element={
+              <Layout><Privacy /></Layout>
+            
           } />
 
           <Route path="*" element={<Navigate to="/" replace />} />

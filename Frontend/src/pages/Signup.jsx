@@ -558,7 +558,7 @@ export default function Signup() {
                     className="h-4 w-4 rounded accent-primary-600"
                   />
                   <div className="text-sm text-slate-600">
-                    I accept the <span className="font-semibold text-primary-700">terms and conditions</span>
+                    I accept the {" "} <Link to="/terms" className="font-semibold text-primary-700">terms and conditions</Link>
                   </div>
                 </label>
               </div>

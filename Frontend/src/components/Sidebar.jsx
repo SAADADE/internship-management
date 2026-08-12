@@ -19,7 +19,7 @@ const studentNav = [
 const supervisorNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/supervisor' },
   { label: 'Students', icon: GraduationCap, to: '/supervisor/students' },
-  { label: 'Reports', icon: FileText, to: '/supervisor/reports' },
+  { label: 'Weekly Logs', icon: FileText, to: '/supervisor/reports' },
   { label: 'Appraisal', icon: FileText, to: '/supervisor/appraisal' },
 ]
 
@@ -68,8 +68,8 @@ export default function Sidebar({ collapsed, onToggle }) {
       {!collapsed && (
         <div className="px-4 pt-4 pb-2">
           <span className="text-[10px] font-semibold text-primary-400 uppercase tracking-widest">
-            {user?.role === 'student' ? '— Student Portal' :
-             user?.role === 'supervisor' ? '— Supervisor Portal' : '— Admin Portal'}
+            {user?.role === 'student' ? 'Student Portal' :
+             user?.role === 'supervisor' ? 'Supervisor Portal' : 'Admin Portal'}
           </span>
         </div>
       )}

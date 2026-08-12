@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Document, Page, pdfjs } from 'react-pdf'
-import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 import {
   ArrowLeft, CheckCircle, Save, Calendar, Building2, FileText,
   MessageSquare, Download
 } from 'lucide-react'
 import { downloadAdminReportFile, getAdminReportDetail, getAdminReportPreviewBlob, updateAdminReportDetail } from '../api'
 
-pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker()
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 export default function AdminReportView() {
   const navigate = useNavigate()
@@ -312,9 +311,8 @@ export default function AdminReportView() {
           <div className="border-b border-gray-100 bg-primary-50/40 px-5 py-4">
             <div className="flex items-center gap-2">
               <MessageSquare size={16} className="text-primary-600" />
-              <h3 className="font-heading font-semibold text-gray-800">Review & Feedback</h3>
+              <h3 className="font-heading font-semibold text-gray-800">Score and Grading</h3>
             </div>
-            <p className="mt-1 text-xs text-gray-400">Your feedback will be shared with the student</p>
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto p-5">
@@ -339,7 +337,7 @@ export default function AdminReportView() {
                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary-100">
                   <CheckCircle size={11} className="text-primary-600" />
                 </span>
-                Review Decision *
+                Decision *
               </label>
               <select className="form-input" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="Approved">✅ Approved</option>
@@ -367,7 +365,7 @@ export default function AdminReportView() {
                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100">
                   <MessageSquare size={11} className="text-sky-600" />
                 </span>
-                Feedback Comments *
+                Comments *
               </label>
               <textarea
                 className="form-input min-h-[140px] resize-none text-sm"
